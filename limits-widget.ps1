@@ -68,6 +68,7 @@ function New-DefaultConfig {
         notifyThreshold = 85
         autostart       = $true
         topMost         = $true
+        uiScale         = 1.0
         windowX         = $null
         windowY         = $null
     }
@@ -140,7 +141,7 @@ function Format-Reset {
         if ($d.TotalDays -ge 1) { $rel = '{0} д {1} ч' -f [int]$d.TotalDays, $d.Hours }
         elseif ($d.TotalHours -ge 1) { $rel = '{0} ч {1} мин' -f [int]$d.TotalHours, $d.Minutes }
         else { $rel = '{0} мин' -f [Math]::Max(1, [int]$d.TotalMinutes) }
-        return 'сброс через {0} · {1:HH:mm}' -f $rel, $dt
+        return 'сброс через {0} · {1:dd.MM HH:mm}' -f $rel, $dt
     } catch {
         return ''
     }
@@ -539,14 +540,17 @@ Write-Log 'widget starting'
 Write-Log ('params: Test={0} Smoke={1} ExePath={2}' -f [bool]$Test, [bool]$Smoke, $ExePath)
 
 $script:cfg = Load-Config
+$script:cfg.uiScale = [double][math]::Max(0.75, [math]::Min(1.6, [double]$script:cfg.uiScale))
 $script:lastUsage = $null
 $script:lastError = $null
 $script:apiKey = $null
 $script:notifiedKey = $null
 $script:exiting = $false
 $script:dragging = $false
+$script:resizing = $false
 $script:toastForm = $null
 $script:toastTimer = $null
+$script:uiFonts = @()
 
 $script:tip = New-Object Windows.Forms.ToolTip
 $script:tip.OwnerDraw = $false
@@ -595,7 +599,7 @@ $script:form = $form
 $form.Text = $script:AppName
 $form.FormBorderStyle = [Windows.Forms.FormBorderStyle]::None
 $form.StartPosition = [Windows.Forms.FormStartPosition]::Manual
-$form.ClientSize = New-Object Drawing.Size 320, 202
+$form.ClientSize = New-Object Drawing.Size 320, 224
 $form.BackColor = $script:C_Bg
 $form.ForeColor = $script:C_Text
 $form.TopMost = [bool]$script:cfg.topMost
@@ -629,6 +633,7 @@ $form.Add_Paint({
 })
 
 $lblTitle = New-Object Windows.Forms.Label
+$script:lblTitle = $lblTitle
 $lblTitle.Text = 'OpenCode Go'
 $lblTitle.Font = New-Object Drawing.Font 'Segoe UI', 10, ([Drawing.FontStyle]::Bold)
 $lblTitle.ForeColor = $script:C_Text
@@ -640,6 +645,9 @@ $form.Controls.Add($lblTitle)
 $btnRefresh = New-IconButton -Glyph ([char]0xE72C) -X 228 -Y 6 -Tip 'Обновить сейчас (F5)'
 $btnSettings = New-IconButton -Glyph ([char]0xE713) -X 256 -Y 6 -Tip 'Настройки'
 $btnClose = New-IconButton -Glyph ([char]0xE8BB) -X 284 -Y 6 -Tip 'Закрыть'
+$script:btnRefresh = $btnRefresh
+$script:btnSettings = $btnSettings
+$script:btnClose = $btnClose
 $btnClose.FlatAppearance.MouseOverBackColor = $script:C_Red
 $btnClose.FlatAppearance.MouseDownBackColor = $script:C_Red
 $btnClose.ForeColor = $script:C_Text
@@ -648,7 +656,8 @@ $btnSettings.Add_Click({ Show-Settings })
 $btnClose.Add_Click({ Write-Log 'close button clicked'; $script:form.Close() })
 $form.Controls.AddRange(@($btnRefresh, $btnSettings, $btnClose))
 
-$y = 44
+$y = 46
+$lastBottom = 0
 foreach ($row in $script:rows) {
     $lblName = New-Object Windows.Forms.Label
     $lblName.Text = $row.title
@@ -670,7 +679,7 @@ foreach ($row in $script:rows) {
     $form.Controls.Add($lblPct)
 
     $track = New-Object Windows.Forms.Panel
-    $track.Location = New-Object Drawing.Point 12, ($y + 17)
+    $track.Location = New-Object Drawing.Point 12, ($y + 20)
     $track.Size = New-Object Drawing.Size 296, 8
     $track.BackColor = $script:C_Track
     $form.Controls.Add($track)
@@ -685,8 +694,8 @@ foreach ($row in $script:rows) {
     $lblReset.Text = ''
     $lblReset.Font = New-Object Drawing.Font 'Segoe UI', 7.5
     $lblReset.ForeColor = $script:C_Muted
-    $lblReset.Location = New-Object Drawing.Point 12, ($y + 27)
-    $lblReset.Size = New-Object Drawing.Size 296, 13
+    $lblReset.Location = New-Object Drawing.Point 12, ($y + 31)
+    $lblReset.Size = New-Object Drawing.Size 296, 14
     $lblReset.BackColor = [Drawing.Color]::Transparent
     $form.Controls.Add($lblReset)
 
@@ -696,18 +705,82 @@ foreach ($row in $script:rows) {
     $row['fill'] = $fill
     $row['reset'] = $lblReset
 
-    $y += 46
+    $lastBottom = $y + 31 + 14
+    $y += 54
 }
 
 $status = New-Object Windows.Forms.Label
 $status.Text = 'загрузка...'
 $status.Font = New-Object Drawing.Font 'Segoe UI', 7.5
 $status.ForeColor = $script:C_Muted
-$status.Location = New-Object Drawing.Point 12, 182
+$status.Location = New-Object Drawing.Point 12, ($lastBottom + 6)
 $status.Size = New-Object Drawing.Size 296, 14
 $status.BackColor = [Drawing.Color]::Transparent
 $form.Controls.Add($status)
 $script:status = $status
+
+function Update-Layout {
+    $s = [double]$script:cfg.uiScale
+    if ($s -lt 0.75) { $s = 0.75 }
+    if ($s -gt 1.6) { $s = 1.6 }
+
+    foreach ($f in $script:uiFonts) { try { $f.Dispose() } catch { } }
+    $fTitle = New-Object Drawing.Font 'Segoe UI', ([single][math]::Round(10 * $s, 1)), ([Drawing.FontStyle]::Bold)
+    $fIcon  = New-Object Drawing.Font 'Segoe MDL2 Assets', ([single][math]::Round(10 * $s, 1))
+    $fName  = New-Object Drawing.Font 'Segoe UI', ([single][math]::Round(8.5 * $s, 1))
+    $fPct   = New-Object Drawing.Font 'Segoe UI', ([single][math]::Round(8.5 * $s, 1)), ([Drawing.FontStyle]::Bold)
+    $fSmall = New-Object Drawing.Font 'Segoe UI', ([single][math]::Round(7.5 * $s, 1))
+    $script:uiFonts = @($fTitle, $fIcon, $fName, $fPct, $fSmall)
+
+    $script:lblTitle.Font = $fTitle
+    $script:btnRefresh.Font = $fIcon
+    $script:btnSettings.Font = $fIcon
+    $script:btnClose.Font = $fIcon
+
+    $btnSize = [int][math]::Max(16, [int][math]::Round(24 * $s))
+    $script:btnRefresh.Size = New-Object Drawing.Size $btnSize, $btnSize
+    $script:btnSettings.Size = New-Object Drawing.Size $btnSize, $btnSize
+    $script:btnClose.Size = New-Object Drawing.Size $btnSize, $btnSize
+    $script:btnRefresh.Location = New-Object Drawing.Point ([int][math]::Round(228 * $s)), ([int][math]::Round(6 * $s))
+    $script:btnSettings.Location = New-Object Drawing.Point ([int][math]::Round(256 * $s)), ([int][math]::Round(6 * $s))
+    $script:btnClose.Location = New-Object Drawing.Point ([int][math]::Round(284 * $s)), ([int][math]::Round(6 * $s))
+
+    $y = [int][math]::Round(46 * $s)
+    $step = [int][math]::Round(54 * $s)
+    $lastBottom = 0
+    foreach ($row in $script:rows) {
+        $row.name.Font = $fName
+        $row.pct.Font = $fPct
+        $row.reset.Font = $fSmall
+
+        $pctH = [int][math]::Max(13, [int][math]::Round(15 * $s))
+        $row.pct.Size = New-Object Drawing.Size ([int][math]::Round(72 * $s)), $pctH
+        $row.pct.Location = New-Object Drawing.Point ([int][math]::Round(236 * $s)), ($y - 1)
+
+        $barH = [int][math]::Max(5, [int][math]::Round(8 * $s))
+        $row.track.Size = New-Object Drawing.Size ([int][math]::Round(296 * $s)), $barH
+        $row.track.Location = New-Object Drawing.Point ([int][math]::Round(12 * $s)), ($y + [int][math]::Round(20 * $s))
+        $row.fill.Size = New-Object Drawing.Size 0, $barH
+        $row.reset.Size = New-Object Drawing.Size ([int][math]::Round(296 * $s)), ([int][math]::Max(12, [int][math]::Round(14 * $s)))
+        $row.reset.Location = New-Object Drawing.Point ([int][math]::Round(12 * $s)), ($y + [int][math]::Round(31 * $s))
+
+        $lastBottom = $row.reset.Location.Y + $row.reset.Size.Height
+        $y += $step
+    }
+
+    $script:status.Font = $fSmall
+    $statusH = [int][math]::Max(12, [int][math]::Round(14 * $s))
+    $script:status.Size = New-Object Drawing.Size ([int][math]::Round(296 * $s)), $statusH
+    $script:status.Location = New-Object Drawing.Point ([int][math]::Round(12 * $s)), ($lastBottom + [int][math]::Round(6 * $s))
+
+    $form.ClientSize = New-Object Drawing.Size ([int][math]::Round(320 * $s)), ($script:status.Location.Y + $statusH + [int][math]::Round(6 * $s))
+
+    $gripSize = [int][math]::Max(10, [int][math]::Round(14 * $s))
+    $script:grip.Size = New-Object Drawing.Size $gripSize, $gripSize
+    $script:grip.Location = New-Object Drawing.Point ($form.ClientSize.Width - $gripSize), ($form.ClientSize.Height - $gripSize)
+
+    Update-UI
+}
 
 function Add-DragHandlers {
     param([Windows.Forms.Control]$Root)
@@ -742,6 +815,59 @@ function Add-DragHandlers {
 }
 
 Add-DragHandlers -Root $form
+
+$grip = New-Object Windows.Forms.Panel
+$grip.BackColor = $script:C_Bg
+$grip.Cursor = [Windows.Forms.Cursors]::SizeNWSE
+$grip.Tag = 'grip'
+$grip.Add_Paint({
+    param($s, $e)
+    $pen = New-Object Drawing.Pen $script:C_Muted
+    $w = $s.ClientSize.Width
+    $h = $s.ClientSize.Height
+    for ($i = 1; $i -le 3; $i++) {
+        $off = $i * 4
+        $e.Graphics.DrawLine($pen, ($w - $off - 1), ($h - 1), ($w - 1), ($h - $off - 1))
+    }
+    $pen.Dispose()
+})
+$form.Controls.Add($grip)
+$script:grip = $grip
+$script:tip.SetToolTip($grip, 'Потяни за уголок, чтобы изменить размер')
+
+$grip.Add_MouseDown({
+    param($s, $e)
+    if ($e.Button -eq [Windows.Forms.MouseButtons]::Left) {
+        $script:resizing = $true
+        $script:resizeStartScale = [double]$script:cfg.uiScale
+        $script:resizeStart = [Windows.Forms.Cursor]::Position
+    }
+})
+$grip.Add_MouseMove({
+    param($s, $e)
+    if ($script:resizing) {
+        $p = [Windows.Forms.Cursor]::Position
+        $dx = $p.X - $script:resizeStart.X
+        $dy = $p.Y - $script:resizeStart.Y
+        $ns = $script:resizeStartScale + ($dx + $dy) / 800.0
+        $ns = [math]::Max(0.75, [math]::Min(1.6, $ns))
+        $snapped = [math]::Round($ns * 20) / 20
+        if ([math]::Abs($snapped - [double]$script:cfg.uiScale) -gt 0.001) {
+            $script:cfg.uiScale = $snapped
+            Update-Layout
+        }
+    }
+})
+$grip.Add_MouseUp({
+    param($s, $e)
+    if ($script:resizing) {
+        $script:resizing = $false
+        Save-Config
+        Write-Log ('uiScale saved: ' + $script:cfg.uiScale)
+    }
+})
+
+Update-Layout
 
 $timer = New-Object Windows.Forms.Timer
 $script:timer = $timer
