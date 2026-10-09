@@ -724,7 +724,11 @@ function Update-Layout {
     if ($s -lt 0.75) { $s = 0.75 }
     if ($s -gt 1.6) { $s = 1.6 }
 
-    foreach ($f in $script:uiFonts) { try { $f.Dispose() } catch { } }
+    $dpiF = 1.0
+    try { if ($script:form.IsHandleCreated) { $dpiF = $script:form.DeviceDpi / 96.0 } } catch { }
+    $eff = $s * $dpiF
+
+    $oldFonts = $script:uiFonts
     $fTitle = New-Object Drawing.Font 'Segoe UI', ([single][math]::Round(10 * $s, 1)), ([Drawing.FontStyle]::Bold)
     $fIcon  = New-Object Drawing.Font 'Segoe MDL2 Assets', ([single][math]::Round(10 * $s, 1))
     $fName  = New-Object Drawing.Font 'Segoe UI', ([single][math]::Round(8.5 * $s, 1))
@@ -736,48 +740,69 @@ function Update-Layout {
     $script:btnRefresh.Font = $fIcon
     $script:btnSettings.Font = $fIcon
     $script:btnClose.Font = $fIcon
-
-    $btnSize = [int][math]::Max(16, [int][math]::Round(24 * $s))
-    $script:btnRefresh.Size = New-Object Drawing.Size $btnSize, $btnSize
-    $script:btnSettings.Size = New-Object Drawing.Size $btnSize, $btnSize
-    $script:btnClose.Size = New-Object Drawing.Size $btnSize, $btnSize
-    $script:btnRefresh.Location = New-Object Drawing.Point ([int][math]::Round(228 * $s)), ([int][math]::Round(6 * $s))
-    $script:btnSettings.Location = New-Object Drawing.Point ([int][math]::Round(256 * $s)), ([int][math]::Round(6 * $s))
-    $script:btnClose.Location = New-Object Drawing.Point ([int][math]::Round(284 * $s)), ([int][math]::Round(6 * $s))
-
-    $y = [int][math]::Round(46 * $s)
-    $step = [int][math]::Round(54 * $s)
-    $lastBottom = 0
+    $script:status.Font = $fSmall
     foreach ($row in $script:rows) {
         $row.name.Font = $fName
         $row.pct.Font = $fPct
         $row.reset.Font = $fSmall
-
-        $pctH = [int][math]::Max(13, [int][math]::Round(15 * $s))
-        $row.pct.Size = New-Object Drawing.Size ([int][math]::Round(72 * $s)), $pctH
-        $row.pct.Location = New-Object Drawing.Point ([int][math]::Round(236 * $s)), ($y - 1)
-
-        $barH = [int][math]::Max(5, [int][math]::Round(8 * $s))
-        $row.track.Size = New-Object Drawing.Size ([int][math]::Round(296 * $s)), $barH
-        $row.track.Location = New-Object Drawing.Point ([int][math]::Round(12 * $s)), ($y + [int][math]::Round(20 * $s))
-        $row.fill.Size = New-Object Drawing.Size 0, $barH
-        $row.reset.Size = New-Object Drawing.Size ([int][math]::Round(296 * $s)), ([int][math]::Max(12, [int][math]::Round(14 * $s)))
-        $row.reset.Location = New-Object Drawing.Point ([int][math]::Round(12 * $s)), ($y + [int][math]::Round(31 * $s))
-
-        $lastBottom = $row.reset.Location.Y + $row.reset.Size.Height
-        $y += $step
     }
 
-    $script:status.Font = $fSmall
-    $statusH = [int][math]::Max(12, [int][math]::Round(14 * $s))
-    $script:status.Size = New-Object Drawing.Size ([int][math]::Round(296 * $s)), $statusH
-    $script:status.Location = New-Object Drawing.Point ([int][math]::Round(12 * $s)), ($lastBottom + [int][math]::Round(6 * $s))
+    $mx = [int][math]::Round(12 * $eff)
+    $width = [int][math]::Round(320 * $eff)
+    $gapSmall = [int][math]::Max(3, [int][math]::Round(5 * $eff))
+    $gapName = [int][math]::Max(4, [int][math]::Round(7 * $eff))
+    $gapReset = [int][math]::Max(3, [int][math]::Round(5 * $eff))
+    $rowGap = [int][math]::Max(8, [int][math]::Round(13 * $eff))
 
-    $form.ClientSize = New-Object Drawing.Size ([int][math]::Round(320 * $s)), ($script:status.Location.Y + $statusH + [int][math]::Round(6 * $s))
+    $btnSize = [int][math]::Max(16, [int][math]::Round(22 * $eff))
+    $script:btnRefresh.Size = New-Object Drawing.Size $btnSize, $btnSize
+    $script:btnSettings.Size = New-Object Drawing.Size $btnSize, $btnSize
+    $script:btnClose.Size = New-Object Drawing.Size $btnSize, $btnSize
 
-    $gripSize = [int][math]::Max(10, [int][math]::Round(14 * $s))
+    $titleH = $script:lblTitle.PreferredHeight
+    $headerH = [int][math]::Max($titleH, $btnSize)
+    $script:lblTitle.Location = New-Object Drawing.Point $mx, ([int][math]::Round(($headerH - $titleH) / 2))
+    $btnY = [int][math]::Round(($headerH - $btnSize) / 2)
+    $script:btnClose.Location = New-Object Drawing.Point ($width - $mx - $btnSize), $btnY
+    $script:btnSettings.Location = New-Object Drawing.Point ($width - $mx - 2 * $btnSize - $gapSmall), $btnY
+    $script:btnRefresh.Location = New-Object Drawing.Point ($width - $mx - 3 * $btnSize - 2 * $gapSmall), $btnY
+
+    $trackW = $width - 2 * $mx
+    $barH = [int][math]::Max(5, [int][math]::Round(8 * $eff))
+
+    $y = $headerH + [int][math]::Round(8 * $eff)
+    foreach ($row in $script:rows) {
+        $nameH = $row.name.PreferredHeight
+        $row.name.Location = New-Object Drawing.Point $mx, $y
+
+        $pctW = [int][math]::Round(72 * $eff)
+        $row.pct.Size = New-Object Drawing.Size $pctW, $nameH
+        $row.pct.Location = New-Object Drawing.Point ($width - $mx - $pctW), $y
+
+        $trackY = $y + $nameH + $gapName
+        $row.track.Size = New-Object Drawing.Size $trackW, $barH
+        $row.track.Location = New-Object Drawing.Point $mx, $trackY
+        $row.fill.Size = New-Object Drawing.Size 0, $barH
+
+        $resetY = $trackY + $barH + $gapReset
+        $resetH = $row.reset.PreferredHeight
+        $row.reset.Size = New-Object Drawing.Size $trackW, $resetH
+        $row.reset.Location = New-Object Drawing.Point $mx, $resetY
+
+        $y = $resetY + $resetH + $rowGap
+    }
+
+    $statusH = $script:status.PreferredHeight
+    $script:status.Size = New-Object Drawing.Size $trackW, $statusH
+    $script:status.Location = New-Object Drawing.Point $mx, $y
+
+    $form.ClientSize = New-Object Drawing.Size $width, ($y + $statusH + [int][math]::Round(6 * $eff))
+
+    $gripSize = [int][math]::Max(12, [int][math]::Round(14 * $eff))
     $script:grip.Size = New-Object Drawing.Size $gripSize, $gripSize
     $script:grip.Location = New-Object Drawing.Point ($form.ClientSize.Width - $gripSize), ($form.ClientSize.Height - $gripSize)
+
+    foreach ($f in $oldFonts) { try { $f.Dispose() } catch { } }
 
     Update-UI
 }
@@ -867,6 +892,7 @@ $grip.Add_MouseUp({
     }
 })
 
+[void]$form.Handle
 Update-Layout
 
 $timer = New-Object Windows.Forms.Timer
