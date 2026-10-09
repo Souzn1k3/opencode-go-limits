@@ -762,7 +762,7 @@ function Update-Layout {
     $titleH = $script:lblTitle.PreferredHeight
     $headerH = [int][math]::Max($titleH, $btnSize)
     $script:lblTitle.Location = New-Object Drawing.Point $mx, ([int][math]::Round(($headerH - $titleH) / 2))
-    $btnY = [int][math]::Round(($headerH - $btnSize) / 2)
+    $btnY = [int][math]::Round(($headerH - $btnSize) / 2) + [int][math]::Max(2, [int][math]::Round(2 * $eff))
     $script:btnClose.Location = New-Object Drawing.Point ($width - $mx - $btnSize), $btnY
     $script:btnSettings.Location = New-Object Drawing.Point ($width - $mx - 2 * $btnSize - $gapSmall), $btnY
     $script:btnRefresh.Location = New-Object Drawing.Point ($width - $mx - 3 * $btnSize - 2 * $gapSmall), $btnY
