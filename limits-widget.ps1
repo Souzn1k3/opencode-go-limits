@@ -138,9 +138,9 @@ function Format-Reset {
         $dt = [datetime]::Parse($Iso, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind).ToLocalTime()
         $d = $dt - [datetime]::Now
         if ($d.TotalSeconds -le 0) { return 'сброс сейчас' }
-        if ($d.TotalDays -ge 1) { $rel = '{0} д {1} ч' -f [int]$d.TotalDays, $d.Hours }
-        elseif ($d.TotalHours -ge 1) { $rel = '{0} ч {1} мин' -f [int]$d.TotalHours, $d.Minutes }
-        else { $rel = '{0} мин' -f [Math]::Max(1, [int]$d.TotalMinutes) }
+        if ($d.TotalDays -ge 1) { $rel = '{0} д {1} ч' -f [int][math]::Floor($d.TotalDays), $d.Hours }
+        elseif ($d.TotalHours -ge 1) { $rel = '{0} ч {1} мин' -f [int][math]::Floor($d.TotalHours), $d.Minutes }
+        else { $rel = '{0} мин' -f [math]::Max(1, [int][math]::Floor($d.TotalMinutes)) }
         return 'сброс через {0} · {1:dd.MM HH:mm}' -f $rel, $dt
     } catch {
         return ''
