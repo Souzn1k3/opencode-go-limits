@@ -402,18 +402,18 @@ function Show-Settings {
     $dlg.BackColor = $script:C_Bg
     $dlg.ForeColor = $script:C_Text
     $dlg.TopMost = $true
-    $dlg.ClientSize = New-Object Drawing.Size 322, 278
+    $dlg.ClientSize = New-Object Drawing.Size 340, 268
     $dlg.Font = New-Object Drawing.Font 'Segoe UI', 9
 
     $lbl1 = New-Object Windows.Forms.Label
     $lbl1.Text = 'Интервал обновления (мин):'
-    $lbl1.Location = New-Object Drawing.Point 14, 19
+    $lbl1.Location = New-Object Drawing.Point 18, 20
     $lbl1.AutoSize = $true
     $lbl1.ForeColor = $script:C_Text
 
     $numInterval = New-Object Windows.Forms.NumericUpDown
-    $numInterval.Location = New-Object Drawing.Point 232, 16
-    $numInterval.Size = New-Object Drawing.Size 76, 24
+    $numInterval.Location = New-Object Drawing.Point 234, 17
+    $numInterval.Size = New-Object Drawing.Size 88, 24
     $numInterval.Minimum = 1
     $numInterval.Maximum = 120
     $numInterval.Value = [decimal][Math]::Min(120, [Math]::Max(1, [int]$script:cfg.refreshMinutes))
@@ -422,9 +422,10 @@ function Show-Settings {
     $numInterval.BorderStyle = [Windows.Forms.BorderStyle]::FixedSingle
 
     $cbNotify = New-Object Windows.Forms.CheckBox
-    $cbNotify.Text = 'Уведомлять о 5-часовом лимите при превышении порога'
-    $cbNotify.Location = New-Object Drawing.Point 14, 50
-    $cbNotify.Width = 294
+    $cbNotify.Text = 'Уведомлять о 5ч-лимите при превышении порога'
+    $cbNotify.Location = New-Object Drawing.Point 18, 54
+    $cbNotify.Size = New-Object Drawing.Size 306, 20
+    $cbNotify.AutoSize = $false
     $cbNotify.Checked = [bool]$script:cfg.notify
     $cbNotify.ForeColor = $script:C_Text
     $cbNotify.FlatStyle = [Windows.Forms.FlatStyle]::Flat
@@ -432,13 +433,13 @@ function Show-Settings {
 
     $lbl2 = New-Object Windows.Forms.Label
     $lbl2.Text = 'Порог, %:'
-    $lbl2.Location = New-Object Drawing.Point 32, 82
+    $lbl2.Location = New-Object Drawing.Point 38, 86
     $lbl2.AutoSize = $true
-    $lbl2.ForeColor = $script:C_Muted
+    $lbl2.ForeColor = $script:C_Text
 
     $numThreshold = New-Object Windows.Forms.NumericUpDown
-    $numThreshold.Location = New-Object Drawing.Point 232, 79
-    $numThreshold.Size = New-Object Drawing.Size 76, 24
+    $numThreshold.Location = New-Object Drawing.Point 234, 83
+    $numThreshold.Size = New-Object Drawing.Size 88, 24
     $numThreshold.Minimum = 50
     $numThreshold.Maximum = 100
     $numThreshold.Value = [decimal][Math]::Min(100, [Math]::Max(50, [int]$script:cfg.notifyThreshold))
@@ -448,8 +449,9 @@ function Show-Settings {
 
     $cbAutostart = New-Object Windows.Forms.CheckBox
     $cbAutostart.Text = 'Запускать при входе в Windows'
-    $cbAutostart.Location = New-Object Drawing.Point 14, 114
-    $cbAutostart.Width = 294
+    $cbAutostart.Location = New-Object Drawing.Point 18, 116
+    $cbAutostart.Size = New-Object Drawing.Size 306, 20
+    $cbAutostart.AutoSize = $false
     $cbAutostart.Checked = (Test-Autostart)
     $cbAutostart.ForeColor = $script:C_Text
     $cbAutostart.FlatStyle = [Windows.Forms.FlatStyle]::Flat
@@ -457,26 +459,35 @@ function Show-Settings {
 
     $cbTopMost = New-Object Windows.Forms.CheckBox
     $cbTopMost.Text = 'Окно всегда поверх других окон'
-    $cbTopMost.Location = New-Object Drawing.Point 14, 142
-    $cbTopMost.Width = 294
+    $cbTopMost.Location = New-Object Drawing.Point 18, 144
+    $cbTopMost.Size = New-Object Drawing.Size 306, 20
+    $cbTopMost.AutoSize = $false
     $cbTopMost.Checked = [bool]$script:cfg.topMost
     $cbTopMost.ForeColor = $script:C_Text
     $cbTopMost.FlatStyle = [Windows.Forms.FlatStyle]::Flat
     $cbTopMost.UseVisualStyleBackColor = $false
 
     $cbPanel = New-Object Windows.Forms.CheckBox
-    $cbPanel.Text = 'Панель у верхнего края (наведи курсор на язычок)'
-    $cbPanel.Location = New-Object Drawing.Point 14, 170
-    $cbPanel.Width = 294
+    $cbPanel.Text = 'Панель у верхнего края экрана'
+    $cbPanel.Location = New-Object Drawing.Point 18, 172
+    $cbPanel.Size = New-Object Drawing.Size 306, 20
+    $cbPanel.AutoSize = $false
     $cbPanel.Checked = [bool]$script:cfg.panelMode
     $cbPanel.ForeColor = $script:C_Text
     $cbPanel.FlatStyle = [Windows.Forms.FlatStyle]::Flat
     $cbPanel.UseVisualStyleBackColor = $false
 
+    $lblPanelHint = New-Object Windows.Forms.Label
+    $lblPanelHint.Text = 'Наведи курсор на язычок у верхнего края'
+    $lblPanelHint.Location = New-Object Drawing.Point 38, 195
+    $lblPanelHint.AutoSize = $true
+    $lblPanelHint.Font = New-Object Drawing.Font 'Segoe UI', 8.5
+    $lblPanelHint.ForeColor = [Drawing.Color]::FromArgb(170, 176, 185)
+
     $btnSave = New-Object Windows.Forms.Button
     $btnSave.Text = 'Сохранить'
     $btnSave.Size = New-Object Drawing.Size 88, 28
-    $btnSave.Location = New-Object Drawing.Point 220, 236
+    $btnSave.Location = New-Object Drawing.Point 234, 226
     $btnSave.FlatStyle = [Windows.Forms.FlatStyle]::Flat
     $btnSave.BackColor = $script:C_BgAlt
     $btnSave.ForeColor = $script:C_Text
@@ -485,7 +496,7 @@ function Show-Settings {
     $btnCancel = New-Object Windows.Forms.Button
     $btnCancel.Text = 'Отмена'
     $btnCancel.Size = New-Object Drawing.Size 88, 28
-    $btnCancel.Location = New-Object Drawing.Point 124, 236
+    $btnCancel.Location = New-Object Drawing.Point 138, 226
     $btnCancel.FlatStyle = [Windows.Forms.FlatStyle]::Flat
     $btnCancel.BackColor = $script:C_BgAlt
     $btnCancel.ForeColor = $script:C_Text
@@ -510,7 +521,7 @@ function Show-Settings {
         $dlg.Close()
     })
 
-    $dlg.Controls.AddRange(@($lbl1, $numInterval, $cbNotify, $lbl2, $numThreshold, $cbAutostart, $cbTopMost, $cbPanel, $btnSave, $btnCancel))
+    $dlg.Controls.AddRange(@($lbl1, $numInterval, $cbNotify, $lbl2, $numThreshold, $cbAutostart, $cbTopMost, $cbPanel, $lblPanelHint, $btnSave, $btnCancel))
     $dlg.AcceptButton = $btnSave
     $dlg.CancelButton = $btnCancel
     [void]$dlg.ShowDialog($script:form)
@@ -583,9 +594,13 @@ $script:panelShowTicks = 0
 $script:panelHideTicks = 0
 $script:panelAnimTimer = $null
 $script:panelEdgeTimer = $null
+$script:panelAnimFromY = 0
+$script:panelAnimToY = 0
+$script:panelAnimStart = 0
+$script:screenSig = ''
 $script:PANEL_TAB = 4
-$script:PANEL_STEP = 16
-$script:PANEL_ANIM_MS = 15
+$script:PANEL_ANIM_MS = 10
+$script:PANEL_ANIM_DURATION = 450
 $script:PANEL_EDGE_MS = 100
 $script:PANEL_SHOW_TICKS = 2
 $script:PANEL_HIDE_TICKS = 4
@@ -870,6 +885,19 @@ function Get-PanelHiddenY {
     return -($script:form.ClientSize.Height) + $script:PANEL_TAB
 }
 
+function Start-PanelAnim {
+    param([string]$NewState)
+    $script:panelAnimFromY = $script:form.Location.Y
+    if ($NewState -eq 'showing') {
+        $script:panelAnimToY = 0
+    } else {
+        $script:panelAnimToY = Get-PanelHiddenY
+    }
+    $script:panelState = $NewState
+    $script:panelAnimStart = [Environment]::TickCount
+    $script:panelAnimTimer.Start()
+}
+
 function Set-PanelMode {
     param([bool]$Enabled)
     $wa = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
@@ -901,6 +929,50 @@ function Set-PanelMode {
         }
         $script:form.Invalidate()
         Write-Log 'panel mode disabled'
+    }
+}
+
+function Get-ScreenSignature {
+    $parts = @()
+    foreach ($sc in [Windows.Forms.Screen]::AllScreens) {
+        $parts += ('{0}:{1}:{2}:{3}' -f $sc.DeviceName, $sc.Bounds.ToString(), $sc.WorkingArea.ToString(), [bool]$sc.Primary)
+    }
+    try { $parts += ('dpi=' + $script:form.DeviceDpi) } catch { }
+    return ($parts -join '|')
+}
+
+function Update-ScreenPlacement {
+    $wa = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    $f = $script:form
+    $w = $f.Width
+    $h = $f.Height
+    if ($script:cfg.panelMode) {
+        $px = $null
+        if ($null -ne $script:cfg.panelX) { $px = [int][math]::Floor([double]$script:cfg.panelX) }
+        if ($null -eq $px -or $px -lt ($wa.Left - 100) -or $px -gt ($wa.Right - $w + 100)) {
+            $px = $wa.Right - $w - 24
+        }
+        $script:cfg.panelX = $px
+        if ($script:panelState -eq 'shown') {
+            $f.Location = New-Object Drawing.Point $px, 0
+        } elseif ($script:panelState -eq 'hidden') {
+            $f.Location = New-Object Drawing.Point $px, (Get-PanelHiddenY)
+        } else {
+            $f.Location = New-Object Drawing.Point $px, $f.Location.Y
+        }
+    } else {
+        $visible = $false
+        foreach ($sc in [Windows.Forms.Screen]::AllScreens) {
+            $inter = [Drawing.Rectangle]::Intersect($f.Bounds, $sc.WorkingArea)
+            if ($inter.Width -ge 60 -and $inter.Height -ge 60) { $visible = $true; break }
+        }
+        if (-not $visible) {
+            $f.Location = New-Object Drawing.Point ($wa.Right - $w - 24), ($wa.Bottom - $h - 24)
+            $script:cfg.windowX = $f.Location.X
+            $script:cfg.windowY = $f.Location.Y
+            Save-Config
+            Write-Log 'window moved back on screen'
+        }
     }
 }
 
@@ -1018,16 +1090,19 @@ $script:panelAnimTimer = $animTimer
 $animTimer.Interval = $script:PANEL_ANIM_MS
 $animTimer.Add_Tick({
     $f = $script:form
-    $y = $f.Location.Y
-    if ($script:panelState -eq 'showing') {
-        $ny = $y + $script:PANEL_STEP
-        if ($ny -ge 0) { $ny = 0; $script:panelState = 'shown'; $script:panelAnimTimer.Stop() }
-        $f.Location = New-Object Drawing.Point $f.Location.X, $ny
-    } elseif ($script:panelState -eq 'hiding') {
-        $target = Get-PanelHiddenY
-        $ny = $y - $script:PANEL_STEP
-        if ($ny -le $target) { $ny = $target; $script:panelState = 'hidden'; $script:panelAnimTimer.Stop() }
-        $f.Location = New-Object Drawing.Point $f.Location.X, $ny
+    $elapsed = [Environment]::TickCount - $script:panelAnimStart
+    if ($elapsed -lt 0) { $elapsed = 0 }
+    $t = [math]::Min(1.0, $elapsed / [double]$script:PANEL_ANIM_DURATION)
+    if ($t -lt 0.5) {
+        $eased = 4 * $t * $t * $t
+    } else {
+        $eased = 1 - [math]::Pow(-2 * $t + 2, 3) / 2
+    }
+    $ny = [int][math]::Round($script:panelAnimFromY + ($script:panelAnimToY - $script:panelAnimFromY) * $eased)
+    $f.Location = New-Object Drawing.Point $f.Location.X, $ny
+    if ($t -ge 1.0) {
+        if ($script:panelState -eq 'showing') { $script:panelState = 'shown' } else { $script:panelState = 'hidden' }
+        $script:panelAnimTimer.Stop()
     }
 })
 
@@ -1044,16 +1119,14 @@ $edgeTimer.Add_Tick({
         if ($hitX -and $hitY) { $script:panelShowTicks++ } else { $script:panelShowTicks = 0 }
         if ($script:panelShowTicks -ge $script:PANEL_SHOW_TICKS) {
             $script:panelShowTicks = 0
-            $script:panelState = 'showing'
-            $script:panelAnimTimer.Start()
+            Start-PanelAnim 'showing'
         }
     } elseif ($script:panelState -eq 'shown') {
         $inside = ($p.X -ge $f.Left) -and ($p.X -le $f.Right) -and ($p.Y -ge $f.Top) -and ($p.Y -le $f.Bottom)
         if ($inside) { $script:panelHideTicks = 0 } else { $script:panelHideTicks++ }
         if ($script:panelHideTicks -ge $script:PANEL_HIDE_TICKS) {
             $script:panelHideTicks = 0
-            $script:panelState = 'hiding'
-            $script:panelAnimTimer.Start()
+            Start-PanelAnim 'hiding'
         }
     }
 })
@@ -1069,6 +1142,23 @@ if ($script:cfg.panelMode) {
     $script:panelState = 'hidden'
     $edgeTimer.Start()
 }
+
+$script:screenSig = Get-ScreenSignature
+Update-ScreenPlacement
+
+$screenTimer = New-Object Windows.Forms.Timer
+$script:screenTimer = $screenTimer
+$screenTimer.Interval = 3000
+$screenTimer.Add_Tick({
+    $sig = Get-ScreenSignature
+    if ($sig -ne $script:screenSig) {
+        $script:screenSig = $sig
+        Write-Log 'screen configuration changed'
+        Update-Layout
+        Update-ScreenPlacement
+    }
+})
+$screenTimer.Start()
 
 $form.Add_Shown({
     Update-Data
@@ -1105,8 +1195,7 @@ $form.Add_KeyDown({
     if ($e.KeyCode -eq [Windows.Forms.Keys]::Escape) {
         if ($script:cfg.panelMode) {
             if ($script:panelState -eq 'shown') {
-                $script:panelState = 'hiding'
-                $script:panelAnimTimer.Start()
+                Start-PanelAnim 'hiding'
             }
         } else {
             Write-Log 'escape pressed'
