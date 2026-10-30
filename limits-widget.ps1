@@ -90,6 +90,8 @@ function New-DefaultConfig {
         topMost         = $true
         uiScale         = 1.0
         panelMode       = $false
+        panelEdge       = 'top'
+        panelScreen     = $null
         panelX          = $null
         windowX         = $null
         windowY         = $null
@@ -427,7 +429,7 @@ function Show-Settings {
     $dlg.BackColor = $script:C_Bg
     $dlg.ForeColor = $script:C_Text
     $dlg.TopMost = $true
-    $dlg.ClientSize = New-Object Drawing.Size 340, 268
+    $dlg.ClientSize = New-Object Drawing.Size 340, 298
     $dlg.Font = New-Object Drawing.Font 'Segoe UI', 9
 
     $lbl1 = New-Object Windows.Forms.Label
@@ -493,7 +495,7 @@ function Show-Settings {
     $cbTopMost.UseVisualStyleBackColor = $false
 
     $cbPanel = New-Object Windows.Forms.CheckBox
-    $cbPanel.Text = 'Панель у верхнего края экрана'
+    $cbPanel.Text = 'Панель у края экрана'
     $cbPanel.Location = New-Object Drawing.Point 18, 172
     $cbPanel.Size = New-Object Drawing.Size 306, 20
     $cbPanel.AutoSize = $false
@@ -502,9 +504,32 @@ function Show-Settings {
     $cbPanel.FlatStyle = [Windows.Forms.FlatStyle]::Flat
     $cbPanel.UseVisualStyleBackColor = $false
 
+    $lblEdge = New-Object Windows.Forms.Label
+    $lblEdge.Text = 'Край экрана:'
+    $lblEdge.Location = New-Object Drawing.Point 38, 200
+    $lblEdge.AutoSize = $true
+    $lblEdge.ForeColor = $script:C_Text
+
+    $cbEdge = New-Object Windows.Forms.ComboBox
+    $cbEdge.Location = New-Object Drawing.Point 234, 197
+    $cbEdge.Size = New-Object Drawing.Size 88, 24
+    $cbEdge.DropDownStyle = [Windows.Forms.ComboBoxStyle]::DropDownList
+    $cbEdge.FlatStyle = [Windows.Forms.FlatStyle]::Flat
+    $cbEdge.BackColor = $script:C_BgAlt
+    $cbEdge.ForeColor = $script:C_Text
+    [void]$cbEdge.Items.Add('Сверху')
+    [void]$cbEdge.Items.Add('Снизу')
+    [void]$cbEdge.Items.Add('Слева')
+    [void]$cbEdge.Items.Add('Справа')
+    $edgeIndex = 0
+    if ($script:cfg.panelEdge -eq 'bottom') { $edgeIndex = 1 }
+    elseif ($script:cfg.panelEdge -eq 'left') { $edgeIndex = 2 }
+    elseif ($script:cfg.panelEdge -eq 'right') { $edgeIndex = 3 }
+    $cbEdge.SelectedIndex = $edgeIndex
+
     $lblPanelHint = New-Object Windows.Forms.Label
-    $lblPanelHint.Text = 'Наведи курсор на язычок у верхнего края'
-    $lblPanelHint.Location = New-Object Drawing.Point 38, 195
+    $lblPanelHint.Text = 'Наведи курсор на язычок у выбранного края'
+    $lblPanelHint.Location = New-Object Drawing.Point 38, 226
     $lblPanelHint.AutoSize = $true
     $lblPanelHint.Font = New-Object Drawing.Font 'Segoe UI', 8.5
     $lblPanelHint.ForeColor = [Drawing.Color]::FromArgb(170, 176, 185)
@@ -512,7 +537,7 @@ function Show-Settings {
     $btnSave = New-Object Windows.Forms.Button
     $btnSave.Text = 'Сохранить'
     $btnSave.Size = New-Object Drawing.Size 88, 28
-    $btnSave.Location = New-Object Drawing.Point 234, 226
+    $btnSave.Location = New-Object Drawing.Point 234, 256
     $btnSave.FlatStyle = [Windows.Forms.FlatStyle]::Flat
     $btnSave.BackColor = $script:C_BgAlt
     $btnSave.ForeColor = $script:C_Text
@@ -521,7 +546,7 @@ function Show-Settings {
     $btnCancel = New-Object Windows.Forms.Button
     $btnCancel.Text = 'Отмена'
     $btnCancel.Size = New-Object Drawing.Size 88, 28
-    $btnCancel.Location = New-Object Drawing.Point 138, 226
+    $btnCancel.Location = New-Object Drawing.Point 138, 256
     $btnCancel.FlatStyle = [Windows.Forms.FlatStyle]::Flat
     $btnCancel.BackColor = $script:C_BgAlt
     $btnCancel.ForeColor = $script:C_Text
@@ -537,8 +562,15 @@ function Show-Settings {
         $script:timer.Interval = [Math]::Max(1, [int]$script:cfg.refreshMinutes) * 60000
         $script:form.TopMost = ([bool]$script:cfg.topMost -or [bool]$script:cfg.panelMode)
         Set-Autostart -Enabled ([bool]$script:cfg.autostart)
-        if ([bool]$cbPanel.Checked -ne [bool]$script:cfg.panelMode) {
-            Set-PanelMode -Enabled ([bool]$cbPanel.Checked)
+        $edges = @('top', 'bottom', 'left', 'right')
+        $newEdge = $edges[$cbEdge.SelectedIndex]
+        $edgeChanged = ($newEdge -ne $script:cfg.panelEdge)
+        $wasPanel = [bool]$script:cfg.panelMode
+        $script:cfg.panelEdge = $newEdge
+        if ([bool]$cbPanel.Checked) {
+            if (-not $wasPanel -or $edgeChanged) { Set-PanelMode -Enabled $true }
+        } elseif ($wasPanel) {
+            Set-PanelMode -Enabled $false
         }
         $script:notifiedKey = $null
         Save-Config
@@ -546,7 +578,7 @@ function Show-Settings {
         $dlg.Close()
     })
 
-    $dlg.Controls.AddRange(@($lbl1, $numInterval, $cbNotify, $lbl2, $numThreshold, $cbAutostart, $cbTopMost, $cbPanel, $lblPanelHint, $btnSave, $btnCancel))
+    $dlg.Controls.AddRange(@($lbl1, $numInterval, $cbNotify, $lbl2, $numThreshold, $cbAutostart, $cbTopMost, $cbPanel, $lblEdge, $cbEdge, $lblPanelHint, $btnSave, $btnCancel))
     $dlg.AcceptButton = $btnSave
     $dlg.CancelButton = $btnCancel
     [void]$dlg.ShowDialog($script:form)
@@ -603,6 +635,7 @@ Write-Log ('params: Test={0} Smoke={1} ExePath={2}' -f [bool]$Test, [bool]$Smoke
 
 $script:cfg = Load-Config
 $script:cfg.uiScale = [double][math]::Max(0.75, [math]::Min(1.6, [double]$script:cfg.uiScale))
+if ($script:cfg.panelEdge -notin @('top', 'bottom', 'left', 'right')) { $script:cfg.panelEdge = 'top' }
 $script:lastUsage = $null
 $script:lastError = $null
 $script:apiKey = $null
@@ -619,13 +652,13 @@ $script:panelShowTicks = 0
 $script:panelHideTicks = 0
 $script:panelAnimTimer = $null
 $script:panelEdgeTimer = $null
-$script:panelAnimFromY = 0
-$script:panelAnimToY = 0
+$script:panelAnimFromPoint = New-Object Drawing.Point 0, 0
+$script:panelAnimToPoint = New-Object Drawing.Point 0, 0
 $script:panelAnimStart = 0
 $script:screenSig = ''
 $script:PANEL_TAB = 4
 $script:PANEL_ANIM_MS = 10
-$script:PANEL_ANIM_DURATION = 450
+$script:PANEL_ANIM_DURATION = 550
 $script:PANEL_EDGE_MS = 100
 $script:PANEL_SHOW_TICKS = 2
 $script:PANEL_HIDE_TICKS = 4
@@ -643,7 +676,7 @@ $miRefresh = $menu.Items.Add('Обновить сейчас  (F5)')
 $miNotify = $menu.Items.Add('Уведомления о 5ч-лимите')
 $miAutostart = $menu.Items.Add('Автозапуск с Windows')
 $miTop = $menu.Items.Add('Поверх всех окон')
-$miPanel = $menu.Items.Add('Панель у верхнего края')
+$miPanel = $menu.Items.Add('Панель у края экрана')
 $miSettings = $menu.Items.Add('Настройки...')
 [void]$menu.Items.Add('-')
 $miExit = $menu.Items.Add('Выход')
@@ -722,7 +755,16 @@ $form.Add_Paint({
         $pen.Dispose()
         if ($script:cfg.panelMode -and $script:panelState -ne 'shown') {
             $tabBrush = New-Object Drawing.SolidBrush (Get-BarColor -Percent $script:worstPct)
-            $e.Graphics.FillRectangle($tabBrush, 0, ($ch - $script:PANEL_TAB), $cw, $script:PANEL_TAB)
+            $edge = $script:cfg.panelEdge
+            if ($edge -eq 'bottom') {
+                $e.Graphics.FillRectangle($tabBrush, 0, 0, $cw, $script:PANEL_TAB)
+            } elseif ($edge -eq 'left') {
+                $e.Graphics.FillRectangle($tabBrush, ($cw - $script:PANEL_TAB), 0, $script:PANEL_TAB, $ch)
+            } elseif ($edge -eq 'right') {
+                $e.Graphics.FillRectangle($tabBrush, 0, 0, $script:PANEL_TAB, $ch)
+            } else {
+                $e.Graphics.FillRectangle($tabBrush, 0, ($ch - $script:PANEL_TAB), $cw, $script:PANEL_TAB)
+            }
             $tabBrush.Dispose()
         }
     } catch { }
@@ -909,9 +951,9 @@ function Update-Layout {
 
     if ($script:cfg.panelMode) {
         if ($script:panelState -eq 'shown') {
-            $form.Location = New-Object Drawing.Point $form.Location.X, (Get-PanelDockY -Shown $true)
+            $form.Location = Get-PanelDockedPoint -Shown $true
         } elseif ($script:panelState -eq 'hidden') {
-            $form.Location = New-Object Drawing.Point $form.Location.X, (Get-PanelDockY -Shown $false)
+            $form.Location = Get-PanelDockedPoint -Shown $false
         }
     }
 
@@ -931,51 +973,89 @@ function Get-ScreensSafe {
 
 function Get-PanelScreen {
     $screens = Get-ScreensSafe
-    $w = 0
-    try { $w = [int]$script:form.ClientSize.Width } catch { }
-    $centerX = [int]$script:cfg.panelX + [int]($w / 2)
-    foreach ($sc in $screens) {
-        if ($centerX -ge $sc.Bounds.Left -and $centerX -lt $sc.Bounds.Right) { return $sc }
-    }
-    $best = $screens[0]
-    $bestD = [math]::Abs($centerX - ($best.Bounds.Left + $best.Bounds.Width / 2))
-    foreach ($sc in $screens) {
-        $scx = $sc.Bounds.Left + $sc.Bounds.Width / 2
-        $d = [math]::Abs($centerX - $scx)
-        if ($d -lt $bestD) { $best = $sc; $bestD = $d }
-    }
-    return $best
-}
-
-function Get-PanelDockY {
-    param([bool]$Shown)
-    $sc = Get-PanelScreen
-    if ($Shown) { return [int]$sc.Bounds.Top }
-    return [int]($sc.Bounds.Top - $script:form.ClientSize.Height + $script:PANEL_TAB)
-}
-
-function Get-PanelXClamped {
-    param([int]$X)
-    $screens = Get-ScreensSafe
-    $w = [int]$script:form.ClientSize.Width
-    $centerX = $X + [int]($w / 2)
-    $sc = $null
-    foreach ($s in $screens) {
-        if ($centerX -ge $s.Bounds.Left -and $centerX -lt $s.Bounds.Right) { $sc = $s; break }
-    }
-    if ($null -eq $sc) {
-        $bestD = [double]::MaxValue
-        foreach ($s in $screens) {
-            $d = [math]::Abs($centerX - ($s.Bounds.Left + $s.Bounds.Width / 2))
-            if ($d -lt $bestD) { $bestD = $d; $sc = $s }
+    if ($script:cfg.panelScreen) {
+        foreach ($sc in $screens) {
+            if ($sc.DeviceName -eq $script:cfg.panelScreen) { return $sc }
         }
     }
-    $minX = [int]($sc.Bounds.Left + 8)
-    $maxX = [int]($sc.Bounds.Right - $w - 8)
-    if ($maxX -lt $minX) { $maxX = $minX }
-    if ($X -lt $minX) { $X = $minX }
-    if ($X -gt $maxX) { $X = $maxX }
-    return [int]$X
+    $w = 0
+    $h = 0
+    try { $w = [int]$script:form.ClientSize.Width } catch { }
+    try { $h = [int]$script:form.ClientSize.Height } catch { }
+    $edge = $script:cfg.panelEdge
+    if ($edge -eq 'left' -or $edge -eq 'right') {
+        $center = [int]$script:cfg.panelX + [int]($h / 2)
+        foreach ($sc in $screens) {
+            if ($center -ge $sc.Bounds.Top -and $center -lt $sc.Bounds.Bottom) { return $sc }
+        }
+        $best = $screens[0]
+        $bestD = [math]::Abs($center - ($best.Bounds.Top + $best.Bounds.Height / 2))
+        foreach ($sc in $screens) {
+            $scc = $sc.Bounds.Top + $sc.Bounds.Height / 2
+            $d = [math]::Abs($center - $scc)
+            if ($d -lt $bestD) { $best = $sc; $bestD = $d }
+        }
+        return $best
+    } else {
+        $center = [int]$script:cfg.panelX + [int]($w / 2)
+        foreach ($sc in $screens) {
+            if ($center -ge $sc.Bounds.Left -and $center -lt $sc.Bounds.Right) { return $sc }
+        }
+        $best = $screens[0]
+        $bestD = [math]::Abs($center - ($best.Bounds.Left + $best.Bounds.Width / 2))
+        foreach ($sc in $screens) {
+            $scc = $sc.Bounds.Left + $sc.Bounds.Width / 2
+            $d = [math]::Abs($center - $scc)
+            if ($d -lt $bestD) { $best = $sc; $bestD = $d }
+        }
+        return $best
+    }
+}
+
+function Get-PanelDockedPoint {
+    param([bool]$Shown)
+    $sc = Get-PanelScreen
+    $wa = $sc.WorkingArea
+    $w = [int]$script:form.ClientSize.Width
+    $h = [int]$script:form.ClientSize.Height
+    $pos = [int]$script:cfg.panelX
+    $edge = $script:cfg.panelEdge
+    if ($edge -eq 'bottom') {
+        if ($Shown) { $y = $wa.Bottom - $h } else { $y = $wa.Bottom - $script:PANEL_TAB }
+        return New-Object Drawing.Point $pos, $y
+    } elseif ($edge -eq 'left') {
+        if ($Shown) { $x = $wa.Left } else { $x = $wa.Left - $w + $script:PANEL_TAB }
+        return New-Object Drawing.Point $x, $pos
+    } elseif ($edge -eq 'right') {
+        if ($Shown) { $x = $wa.Right - $w } else { $x = $wa.Right - $script:PANEL_TAB }
+        return New-Object Drawing.Point $x, $pos
+    } else {
+        if ($Shown) { $y = $wa.Top } else { $y = $wa.Top - $h + $script:PANEL_TAB }
+        return New-Object Drawing.Point $pos, $y
+    }
+}
+
+function Get-PanelPosClamped {
+    param([int]$Pos)
+    $sc = Get-PanelScreen
+    $wa = $sc.WorkingArea
+    $w = [int]$script:form.ClientSize.Width
+    $h = [int]$script:form.ClientSize.Height
+    $edge = $script:cfg.panelEdge
+    if ($edge -eq 'left' -or $edge -eq 'right') {
+        $minY = [int]($wa.Top + 8)
+        $maxY = [int]($wa.Bottom - $h - 8)
+        if ($maxY -lt $minY) { $maxY = $minY }
+        if ($Pos -lt $minY) { $Pos = $minY }
+        if ($Pos -gt $maxY) { $Pos = $maxY }
+    } else {
+        $minX = [int]($wa.Left + 8)
+        $maxX = [int]($wa.Right - $w - 8)
+        if ($maxX -lt $minX) { $maxX = $minX }
+        if ($Pos -lt $minX) { $Pos = $minX }
+        if ($Pos -gt $maxX) { $Pos = $maxX }
+    }
+    return [int]$Pos
 }
 
 function Get-NearestScreenForRect {
@@ -1005,11 +1085,11 @@ function Clamp-RectToScreen {
 
 function Start-PanelAnim {
     param([string]$NewState)
-    $script:panelAnimFromY = $script:form.Location.Y
+    $script:panelAnimFromPoint = $script:form.Location
     if ($NewState -eq 'showing') {
-        $script:panelAnimToY = Get-PanelDockY -Shown $true
+        $script:panelAnimToPoint = Get-PanelDockedPoint -Shown $true
     } else {
-        $script:panelAnimToY = Get-PanelDockY -Shown $false
+        $script:panelAnimToPoint = Get-PanelDockedPoint -Shown $false
     }
     $script:panelState = $NewState
     $script:panelAnimStart = [Environment]::TickCount
@@ -1024,10 +1104,16 @@ function Set-PanelMode {
         $script:cfg.panelMode = $true
         $px = $null
         if ($null -ne $script:cfg.panelX) { $px = [int][math]::Floor([double]$script:cfg.panelX) }
-        if ($null -eq $px) { $px = $wa.Right - $w - 24 }
-        $px = Get-PanelXClamped $px
+        if ($null -eq $px) {
+            if ($script:cfg.panelEdge -eq 'left' -or $script:cfg.panelEdge -eq 'right') {
+                $px = $wa.Top + [int](($wa.Height - $script:form.ClientSize.Height) / 2)
+            } else {
+                $px = $wa.Right - $w - 24
+            }
+        }
+        $px = Get-PanelPosClamped $px
         $script:cfg.panelX = $px
-        $script:form.Location = New-Object Drawing.Point $px, (Get-PanelDockY -Shown $false)
+        $script:form.Location = Get-PanelDockedPoint -Shown $false
         $script:form.TopMost = $true
         $script:panelState = 'hidden'
         $script:form.Invalidate()
@@ -1069,14 +1155,18 @@ function Update-ScreenPlacement {
     if ($script:cfg.panelMode) {
         $px = 0
         if ($null -ne $script:cfg.panelX) { $px = [int][math]::Floor([double]$script:cfg.panelX) }
-        $px = Get-PanelXClamped $px
+        $px = Get-PanelPosClamped $px
         $script:cfg.panelX = $px
         if ($script:panelState -eq 'shown') {
-            $f.Location = New-Object Drawing.Point $px, (Get-PanelDockY -Shown $true)
+            $f.Location = Get-PanelDockedPoint -Shown $true
         } elseif ($script:panelState -eq 'hidden') {
-            $f.Location = New-Object Drawing.Point $px, (Get-PanelDockY -Shown $false)
+            $f.Location = Get-PanelDockedPoint -Shown $false
         } else {
-            $f.Location = New-Object Drawing.Point $px, $f.Location.Y
+            if ($script:cfg.panelEdge -eq 'left' -or $script:cfg.panelEdge -eq 'right') {
+                $f.Location = New-Object Drawing.Point $f.Location.X, [int]$script:cfg.panelX
+            } else {
+                $f.Location = New-Object Drawing.Point ([int]$script:cfg.panelX), $f.Location.Y
+            }
         }
     } else {
         $info = Get-NearestScreenForRect $f.Bounds
@@ -1108,9 +1198,15 @@ function Add-DragHandlers {
                 $p = [Windows.Forms.Cursor]::Position
                 $nx = $script:dragFormStart.X + $p.X - $script:dragStart.X
                 if ($script:cfg.panelMode) {
-                    $script:cfg.panelX = $nx
+                    $ny = $script:dragFormStart.Y + $p.Y - $script:dragStart.Y
+                    if ($script:cfg.panelEdge -eq 'left' -or $script:cfg.panelEdge -eq 'right') {
+                        $script:cfg.panelX = $ny
+                    } else {
+                        $script:cfg.panelX = $nx
+                    }
+                    try { $script:cfg.panelScreen = ([Windows.Forms.Screen]::FromPoint($p)).DeviceName } catch { }
                     $dockShown = ($script:panelState -eq 'shown' -or $script:panelState -eq 'showing')
-                    $script:form.Location = New-Object Drawing.Point $nx, (Get-PanelDockY -Shown $dockShown)
+                    $script:form.Location = Get-PanelDockedPoint -Shown $dockShown
                 } else {
                     $script:form.Location = New-Object Drawing.Point $nx, ($script:dragFormStart.Y + $p.Y - $script:dragStart.Y)
                 }
@@ -1121,9 +1217,11 @@ function Add-DragHandlers {
             if ($script:dragging) {
                 $script:dragging = $false
                 if ($script:cfg.panelMode) {
-                    $script:cfg.panelX = Get-PanelXClamped ([int]$script:form.Location.X)
+                    $cur = [Windows.Forms.Cursor]::Position
+                    try { $script:cfg.panelScreen = ([Windows.Forms.Screen]::FromPoint($cur)).DeviceName } catch { }
+                    $script:cfg.panelX = Get-PanelPosClamped ([int]$script:cfg.panelX)
                     $dockShown = ($script:panelState -eq 'shown' -or $script:panelState -eq 'showing')
-                    $script:form.Location = New-Object Drawing.Point $script:cfg.panelX, (Get-PanelDockY -Shown $dockShown)
+                    $script:form.Location = Get-PanelDockedPoint -Shown $dockShown
                 } else {
                     $info = Get-NearestScreenForRect $script:form.Bounds
                     if ($info.Area -lt 3600) {
@@ -1214,12 +1312,13 @@ $animTimer.Add_Tick({ Invoke-Safe {
     if ($elapsed -lt 0) { $elapsed = 0 }
     $t = [math]::Min(1.0, $elapsed / [double]$script:PANEL_ANIM_DURATION)
     if ($t -lt 0.5) {
-        $eased = 4 * $t * $t * $t
+        $eased = 16 * $t * $t * $t * $t * $t
     } else {
-        $eased = 1 - [math]::Pow(-2 * $t + 2, 3) / 2
+        $eased = 1 - [math]::Pow(-2 * $t + 2, 5) / 2
     }
-    $ny = [int][math]::Round($script:panelAnimFromY + ($script:panelAnimToY - $script:panelAnimFromY) * $eased)
-    $f.Location = New-Object Drawing.Point $f.Location.X, $ny
+    $nx = [int][math]::Round($script:panelAnimFromPoint.X + ($script:panelAnimToPoint.X - $script:panelAnimFromPoint.X) * $eased)
+    $ny = [int][math]::Round($script:panelAnimFromPoint.Y + ($script:panelAnimToPoint.Y - $script:panelAnimFromPoint.Y) * $eased)
+    $f.Location = New-Object Drawing.Point $nx, $ny
     if ($t -ge 1.0) {
         if ($script:panelState -eq 'showing') { $script:panelState = 'shown' } else { $script:panelState = 'hidden' }
         $script:panelAnimTimer.Stop()
@@ -1235,8 +1334,21 @@ $edgeTimer.Add_Tick({ Invoke-Safe {
     $f = $script:form
     if ($script:panelState -eq 'hidden') {
         $sc = Get-PanelScreen
-        $hitX = ($p.X -ge $f.Left) -and ($p.X -le $f.Right)
-        $hitY = ($p.Y -ge ($sc.Bounds.Top - 2)) -and ($p.Y -le ($sc.Bounds.Top + $script:PANEL_TAB))
+        $wa = $sc.WorkingArea
+        $edge = $script:cfg.panelEdge
+        if ($edge -eq 'bottom') {
+            $hitX = ($p.X -ge $f.Left) -and ($p.X -le $f.Right)
+            $hitY = ($p.Y -ge ($wa.Bottom - $script:PANEL_TAB)) -and ($p.Y -le ($wa.Bottom + 2))
+        } elseif ($edge -eq 'left') {
+            $hitX = ($p.X -ge ($wa.Left - 2)) -and ($p.X -le ($wa.Left + $script:PANEL_TAB))
+            $hitY = ($p.Y -ge $f.Top) -and ($p.Y -le $f.Bottom)
+        } elseif ($edge -eq 'right') {
+            $hitX = ($p.X -ge ($wa.Right - $script:PANEL_TAB)) -and ($p.X -le ($wa.Right + 2))
+            $hitY = ($p.Y -ge $f.Top) -and ($p.Y -le $f.Bottom)
+        } else {
+            $hitX = ($p.X -ge $f.Left) -and ($p.X -le $f.Right)
+            $hitY = ($p.Y -ge ($wa.Top - 2)) -and ($p.Y -le ($wa.Top + $script:PANEL_TAB))
+        }
         if ($hitX -and $hitY) { $script:panelShowTicks++ } else { $script:panelShowTicks = 0 }
         if ($script:panelShowTicks -ge $script:PANEL_SHOW_TICKS) {
             $script:panelShowTicks = 0
@@ -1255,10 +1367,17 @@ $edgeTimer.Add_Tick({ Invoke-Safe {
 if ($script:cfg.panelMode) {
     $px2 = $null
     if ($null -ne $script:cfg.panelX) { $px2 = [int][math]::Floor([double]$script:cfg.panelX) }
-    if ($null -eq $px2) { $px2 = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea.Right - $form.ClientSize.Width - 24 }
-    $px2 = Get-PanelXClamped $px2
+    if ($null -eq $px2) {
+        $wa2 = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+        if ($script:cfg.panelEdge -eq 'left' -or $script:cfg.panelEdge -eq 'right') {
+            $px2 = $wa2.Top + [int](($wa2.Height - $form.ClientSize.Height) / 2)
+        } else {
+            $px2 = $wa2.Right - $form.ClientSize.Width - 24
+        }
+    }
+    $px2 = Get-PanelPosClamped $px2
     $script:cfg.panelX = $px2
-    $form.Location = New-Object Drawing.Point $px2, (Get-PanelDockY -Shown $false)
+    $form.Location = Get-PanelDockedPoint -Shown $false
     $script:panelState = 'hidden'
     $edgeTimer.Start()
 }
