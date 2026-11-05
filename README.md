@@ -52,6 +52,10 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 | `widget.ico` | Иконка приложения |
 | `build.ps1` | Сборка однофайлового exe через `csc.exe` |
 
+## Правовая оговорка
+
+Проект не связан с Samsung Electronics. One UI — товарный знак Samsung Electronics. Тема является оригинальной стилизацией, вдохновлённой публично доступными принципами дизайна; ассеты, шрифты и код Samsung в проект не включены.
+
 ## Лицензия
 
 [MIT](LICENSE)
