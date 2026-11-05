@@ -41,6 +41,149 @@ $script:C_Green  = [Drawing.Color]::FromArgb(64, 191, 108)
 $script:C_Yellow = [Drawing.Color]::FromArgb(229, 172, 66)
 $script:C_Red    = [Drawing.Color]::FromArgb(233, 90, 80)
 $script:C_Border = [Drawing.Color]::FromArgb(58, 62, 70)
+$script:C_Accent = [Drawing.Color]::FromArgb(64, 191, 108)
+$script:ThemeRadius = 0
+$script:ThemeBarH = 8
+$script:UiFontFamily = 'Segoe UI'
+
+function Get-ThemePalette {
+    param([string]$Name)
+    if ($Name -eq 'oneui') {
+        return @{
+            Bg     = [Drawing.Color]::FromArgb(0, 0, 0)
+            BgAlt  = [Drawing.Color]::FromArgb(26, 26, 26)
+            Track  = [Drawing.Color]::FromArgb(44, 44, 46)
+            Text   = [Drawing.Color]::FromArgb(255, 255, 255)
+            Muted  = [Drawing.Color]::FromArgb(166, 166, 171)
+            Green  = [Drawing.Color]::FromArgb(76, 217, 100)
+            Yellow = [Drawing.Color]::FromArgb(255, 214, 10)
+            Red    = [Drawing.Color]::FromArgb(255, 69, 58)
+            Border = [Drawing.Color]::FromArgb(42, 42, 45)
+            Accent = [Drawing.Color]::FromArgb(62, 145, 255)
+            Radius = 26
+            BarH   = 10
+        }
+    }
+    return @{
+        Bg     = [Drawing.Color]::FromArgb(24, 26, 30)
+        BgAlt  = [Drawing.Color]::FromArgb(33, 36, 42)
+        Track  = [Drawing.Color]::FromArgb(52, 56, 63)
+        Text   = [Drawing.Color]::FromArgb(232, 234, 237)
+        Muted  = [Drawing.Color]::FromArgb(140, 146, 155)
+        Green  = [Drawing.Color]::FromArgb(64, 191, 108)
+        Yellow = [Drawing.Color]::FromArgb(229, 172, 66)
+        Red    = [Drawing.Color]::FromArgb(233, 90, 80)
+        Border = [Drawing.Color]::FromArgb(58, 62, 70)
+        Accent = [Drawing.Color]::FromArgb(64, 191, 108)
+        Radius = 0
+        BarH   = 8
+    }
+}
+
+function Apply-ThemeVars {
+    param([string]$Name)
+    $p = Get-ThemePalette $Name
+    $script:C_Bg = $p.Bg
+    $script:C_BgAlt = $p.BgAlt
+    $script:C_Track = $p.Track
+    $script:C_Text = $p.Text
+    $script:C_Muted = $p.Muted
+    $script:C_Green = $p.Green
+    $script:C_Yellow = $p.Yellow
+    $script:C_Red = $p.Red
+    $script:C_Border = $p.Border
+    $script:C_Accent = $p.Accent
+    $script:ThemeRadius = [int]$p.Radius
+    $script:ThemeBarH = [int]$p.BarH
+}
+
+function Resolve-ThemeFont {
+    param([string]$Name)
+    if ($Name -eq 'oneui') {
+        try {
+            $families = (New-Object System.Drawing.Text.InstalledFontCollection).Families | ForEach-Object { $_.Name }
+            foreach ($cand in @('SamsungOne UI', 'SamsungOne', 'SamsungOneUI')) {
+                if ($families -contains $cand) { return $cand }
+            }
+        } catch { }
+    }
+    return 'Segoe UI'
+}
+
+function New-RoundedPath {
+    param([int]$W, [int]$H, [int]$R)
+    $path = New-Object Drawing.Drawing2D.GraphicsPath
+    if ($W -lt 2 -or $H -lt 2) { return $path }
+    $r = [int][math]::Min($R, [int]([math]::Min($W, $H) / 2))
+    if ($r -lt 2) {
+        $path.AddRectangle((New-Object Drawing.Rectangle 0, 0, $W, $H))
+        return $path
+    }
+    $d = $r * 2
+    $path.AddArc(0, 0, $d, $d, 180, 90)
+    $path.AddArc(($W - $d), 0, $d, $d, 270, 90)
+    $path.AddArc(($W - $d), ($H - $d), $d, $d, 0, 90)
+    $path.AddArc(0, ($H - $d), $d, $d, 90, 90)
+    $path.CloseFigure()
+    return $path
+}
+
+function Set-FormRegion {
+    param([double]$Eff)
+    try {
+        if ($script:ThemeRadius -le 0) { $script:form.Region = $null; return }
+        $w = $script:form.ClientSize.Width
+        $h = $script:form.ClientSize.Height
+        if ($w -lt 2 -or $h -lt 2) { return }
+        $r = [int][math]::Round($script:ThemeRadius * $Eff)
+        if ($r -lt 2) { $script:form.Region = $null; return }
+        $path = New-RoundedPath -W $w -H $h -R $r
+        $script:form.Region = New-Object Drawing.Region $path
+        $path.Dispose()
+    } catch { }
+}
+
+function Set-PillRegion {
+    param([Windows.Forms.Control]$Control, [int]$Radius)
+    try {
+        if ($null -eq $Control -or $Control.IsDisposed) { return }
+        if ($Radius -lt 2 -or $Control.Width -lt 2 -or $Control.Height -lt 2) {
+            $Control.Region = $null
+            return
+        }
+        $path = New-RoundedPath -W $Control.Width -H $Control.Height -R $Radius
+        $Control.Region = New-Object Drawing.Region $path
+        $path.Dispose()
+    } catch { }
+}
+
+function Apply-Theme {
+    param([string]$Name)
+    Apply-ThemeVars $Name
+    $script:UiFontFamily = Resolve-ThemeFont $Name
+    try {
+        $script:form.BackColor = $script:C_Bg
+        $script:form.ForeColor = $script:C_Text
+        if ($script:lblTitle) { $script:lblTitle.ForeColor = $script:C_Text }
+        foreach ($b in @($script:btnRefresh, $script:btnSettings, $script:btnClose)) {
+            if ($b) { $b.BackColor = $script:C_Bg; $b.ForeColor = $script:C_Muted }
+        }
+        if ($script:btnClose) { $script:btnClose.ForeColor = $script:C_Text }
+        foreach ($row in $script:rows) {
+            $row.name.ForeColor = $script:C_Muted
+            $row.reset.ForeColor = $script:C_Muted
+            $row.track.BackColor = $script:C_Track
+        }
+        if ($script:status) { $script:status.ForeColor = $script:C_Muted }
+        if ($script:grip) { $script:grip.BackColor = $script:C_Bg }
+        if ($menu) { $menu.BackColor = $script:C_BgAlt; $menu.ForeColor = $script:C_Text }
+        Update-Layout
+        Update-UI
+        $script:form.Invalidate()
+    } catch {
+        Write-Log ('theme error: ' + $_.Exception.Message)
+    }
+}
 
 $script:rows = @(
     @{ key = 'rolling'; title = '5 часов' },
@@ -72,7 +215,7 @@ function Invoke-Safe {
 
 [Windows.Forms.Application]::add_ThreadException({
     param($sender, $e)
-    try { Write-Log ('thread exception: ' + $e.Exception.Message) } catch { }
+    try { Write-Log ('thread exception: ' + $e.Exception.ToString()) } catch { }
     try { Update-Layout } catch { }
     $e.Handled = $true
 })
@@ -89,6 +232,7 @@ function New-DefaultConfig {
         autostart       = $true
         topMost         = $true
         uiScale         = 1.0
+        theme           = 'classic'
         panelMode       = $false
         panelEdge       = 'top'
         panelScreen     = $null
@@ -223,7 +367,7 @@ function Show-PopupNotification {
 
         $lblTitle = New-Object Windows.Forms.Label
         $lblTitle.Text = $Title
-        $lblTitle.Font = New-Object Drawing.Font 'Segoe UI', 9.5, ([Drawing.FontStyle]::Bold)
+        $lblTitle.Font = New-Object Drawing.Font $script:UiFontFamily, 9.5, ([Drawing.FontStyle]::Bold)
         $lblTitle.ForeColor = $script:C_Red
         $lblTitle.Location = New-Object Drawing.Point 14, 12
         $lblTitle.AutoSize = $true
@@ -231,7 +375,7 @@ function Show-PopupNotification {
 
         $lblText = New-Object Windows.Forms.Label
         $lblText.Text = $Text
-        $lblText.Font = New-Object Drawing.Font 'Segoe UI', 9
+        $lblText.Font = New-Object Drawing.Font $script:UiFontFamily, 9
         $lblText.ForeColor = $script:C_Text
         $lblText.Location = New-Object Drawing.Point 14, 36
         $lblText.Size = New-Object Drawing.Size 316, 52
@@ -325,6 +469,11 @@ function Update-UI {
                 $row.pct.ForeColor = Get-BarColor -Percent $pct
                 $row.fill.Width = [int][Math]::Max(0, [Math]::Min($row.track.Width, [Math]::Round($row.track.Width * $pct / 100)))
                 $row.fill.BackColor = Get-BarColor -Percent $pct
+                if ($script:ThemeRadius -gt 0) {
+                    Set-PillRegion -Control $row.fill -Radius ([int][math]::Max(2, [int]($row.fill.Height / 2)))
+                } else {
+                    $row.fill.Region = $null
+                }
                 $reset = Format-Reset -Iso $u.resetsAt
                 if ($u.status -and $u.status -notin @('ok', 'active')) { $reset = 'лимит исчерпан · ' + $reset }
                 $row.reset.Text = $reset
@@ -333,6 +482,7 @@ function Update-UI {
                 $row.pct.Text = '—'
                 $row.pct.ForeColor = $script:C_Muted
                 $row.fill.Width = 0
+                $row.fill.Region = $null
                 $row.reset.Text = ''
             }
         }
@@ -429,8 +579,8 @@ function Show-Settings {
     $dlg.BackColor = $script:C_Bg
     $dlg.ForeColor = $script:C_Text
     $dlg.TopMost = $true
-    $dlg.ClientSize = New-Object Drawing.Size 340, 298
-    $dlg.Font = New-Object Drawing.Font 'Segoe UI', 9
+    $dlg.ClientSize = New-Object Drawing.Size 340, 328
+    $dlg.Font = New-Object Drawing.Font $script:UiFontFamily, 9
 
     $lbl1 = New-Object Windows.Forms.Label
     $lbl1.Text = 'Интервал обновления (мин):'
@@ -527,17 +677,56 @@ function Show-Settings {
     elseif ($script:cfg.panelEdge -eq 'right') { $edgeIndex = 3 }
     $cbEdge.SelectedIndex = $edgeIndex
 
+    $lblStyle = New-Object Windows.Forms.Label
+    $lblStyle.Text = 'Стиль One UI'
+    $lblStyle.Location = New-Object Drawing.Point 38, 230
+    $lblStyle.AutoSize = $true
+    $lblStyle.ForeColor = $script:C_Text
+
+    $script:dlgThemeOn = ($script:cfg.theme -eq 'oneui')
+    $tgStyle = New-Object Windows.Forms.Panel
+    $tgStyle.Location = New-Object Drawing.Point 274, 226
+    $tgStyle.Size = New-Object Drawing.Size 44, 24
+    $tgStyle.Cursor = [Windows.Forms.Cursors]::Hand
+    $tgStyle.BackColor = $script:C_Bg
+    $tgStyle.Tag = 'toggle'
+    $tgStyle.Add_Paint({
+        param($s, $e)
+        try {
+            $g = $e.Graphics
+            $g.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
+            $on = [bool]$script:dlgThemeOn
+            if ($on) { $trackCol = $script:C_Accent } else { $trackCol = $script:C_Track }
+            $w = $s.ClientSize.Width
+            $h = $s.ClientSize.Height
+            $path = New-RoundedPath -W ($w - 2) -H ($h - 4) -R ([int](($h - 4) / 2))
+            $brush = New-Object Drawing.SolidBrush $trackCol
+            $g.FillPath($brush, $path)
+            $brush.Dispose()
+            $path.Dispose()
+            $k = $h - 8
+            if ($on) { $kx = $w - $k - 5 } else { $kx = 5 }
+            $kbrush = New-Object Drawing.SolidBrush ([Drawing.Color]::White)
+            $g.FillEllipse($kbrush, $kx, 4, $k, $k)
+            $kbrush.Dispose()
+        } catch { }
+    })
+    $tgStyle.Add_Click({
+        $script:dlgThemeOn = -not [bool]$script:dlgThemeOn
+        $tgStyle.Invalidate()
+    })
+
     $lblPanelHint = New-Object Windows.Forms.Label
     $lblPanelHint.Text = 'Наведи курсор на язычок у выбранного края'
-    $lblPanelHint.Location = New-Object Drawing.Point 38, 226
+    $lblPanelHint.Location = New-Object Drawing.Point 38, 256
     $lblPanelHint.AutoSize = $true
-    $lblPanelHint.Font = New-Object Drawing.Font 'Segoe UI', 8.5
+    $lblPanelHint.Font = New-Object Drawing.Font $script:UiFontFamily, 8.5
     $lblPanelHint.ForeColor = [Drawing.Color]::FromArgb(170, 176, 185)
 
     $btnSave = New-Object Windows.Forms.Button
     $btnSave.Text = 'Сохранить'
     $btnSave.Size = New-Object Drawing.Size 88, 28
-    $btnSave.Location = New-Object Drawing.Point 234, 256
+    $btnSave.Location = New-Object Drawing.Point 234, 286
     $btnSave.FlatStyle = [Windows.Forms.FlatStyle]::Flat
     $btnSave.BackColor = $script:C_BgAlt
     $btnSave.ForeColor = $script:C_Text
@@ -546,7 +735,7 @@ function Show-Settings {
     $btnCancel = New-Object Windows.Forms.Button
     $btnCancel.Text = 'Отмена'
     $btnCancel.Size = New-Object Drawing.Size 88, 28
-    $btnCancel.Location = New-Object Drawing.Point 138, 256
+    $btnCancel.Location = New-Object Drawing.Point 138, 286
     $btnCancel.FlatStyle = [Windows.Forms.FlatStyle]::Flat
     $btnCancel.BackColor = $script:C_BgAlt
     $btnCancel.ForeColor = $script:C_Text
@@ -572,13 +761,19 @@ function Show-Settings {
         } elseif ($wasPanel) {
             Set-PanelMode -Enabled $false
         }
+        $newTheme = 'classic'
+        if ([bool]$script:dlgThemeOn) { $newTheme = 'oneui' }
+        if ($newTheme -ne $script:cfg.theme) {
+            $script:cfg.theme = $newTheme
+            Apply-Theme $newTheme
+        }
         $script:notifiedKey = $null
         Save-Config
         Write-Log 'settings saved'
         $dlg.Close()
     })
 
-    $dlg.Controls.AddRange(@($lbl1, $numInterval, $cbNotify, $lbl2, $numThreshold, $cbAutostart, $cbTopMost, $cbPanel, $lblEdge, $cbEdge, $lblPanelHint, $btnSave, $btnCancel))
+    $dlg.Controls.AddRange(@($lbl1, $numInterval, $cbNotify, $lbl2, $numThreshold, $cbAutostart, $cbTopMost, $cbPanel, $lblEdge, $cbEdge, $lblStyle, $tgStyle, $lblPanelHint, $btnSave, $btnCancel))
     $dlg.AcceptButton = $btnSave
     $dlg.CancelButton = $btnCancel
     [void]$dlg.ShowDialog($script:form)
@@ -636,6 +831,9 @@ Write-Log ('params: Test={0} Smoke={1} ExePath={2}' -f [bool]$Test, [bool]$Smoke
 $script:cfg = Load-Config
 $script:cfg.uiScale = [double][math]::Max(0.75, [math]::Min(1.6, [double]$script:cfg.uiScale))
 if ($script:cfg.panelEdge -notin @('top', 'bottom', 'left', 'right')) { $script:cfg.panelEdge = 'top' }
+if ($script:cfg.theme -notin @('classic', 'oneui')) { $script:cfg.theme = 'classic' }
+Apply-ThemeVars $script:cfg.theme
+$script:UiFontFamily = Resolve-ThemeFont $script:cfg.theme
 $script:lastUsage = $null
 $script:lastError = $null
 $script:apiKey = $null
@@ -656,6 +854,7 @@ $script:panelAnimFromPoint = New-Object Drawing.Point 0, 0
 $script:panelAnimToPoint = New-Object Drawing.Point 0, 0
 $script:panelAnimStart = 0
 $script:screenSig = ''
+$script:inLayout = $false
 $script:PANEL_TAB = 4
 $script:PANEL_ANIM_MS = 10
 $script:PANEL_ANIM_DURATION = 550
@@ -751,7 +950,17 @@ $form.Add_Paint({
         $ch = $s.ClientSize.Height
         if ($cw -lt 2 -or $ch -lt 2) { return }
         $pen = New-Object Drawing.Pen $script:C_Border
-        $e.Graphics.DrawRectangle($pen, 0, 0, ($cw - 1), ($ch - 1))
+        if ($script:ThemeRadius -gt 0) {
+            $dpi = 1.0
+            try { $dpi = $s.DeviceDpi / 96.0 } catch { }
+            $r = [int][math]::Round($script:ThemeRadius * [double]$script:cfg.uiScale * $dpi)
+            $path = New-RoundedPath -W ($cw - 1) -H ($ch - 1) -R $r
+            $e.Graphics.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
+            $e.Graphics.DrawPath($pen, $path)
+            $path.Dispose()
+        } else {
+            $e.Graphics.DrawRectangle($pen, 0, 0, ($cw - 1), ($ch - 1))
+        }
         $pen.Dispose()
         if ($script:cfg.panelMode -and $script:panelState -ne 'shown') {
             $tabBrush = New-Object Drawing.SolidBrush (Get-BarColor -Percent $script:worstPct)
@@ -857,7 +1066,21 @@ $status.BackColor = [Drawing.Color]::Transparent
 $form.Controls.Add($status)
 $script:status = $status
 
+function Get-FontsInUse {
+    $list = New-Object System.Collections.ArrayList
+    $stack = New-Object System.Collections.Stack
+    $stack.Push($script:form)
+    while ($stack.Count -gt 0) {
+        $c = $stack.Pop()
+        try { if ($c.Font) { [void]$list.Add($c.Font) } } catch { }
+        foreach ($ch in $c.Controls) { $stack.Push($ch) }
+    }
+    return $list
+}
+
 function Update-Layout {
+    if ($script:inLayout) { return }
+    $script:inLayout = $true
     try {
     $s = [double]$script:cfg.uiScale
     if (-not ($s -ge 0.75)) { $s = 0.75 }
@@ -871,11 +1094,11 @@ function Update-Layout {
     if ($eff -gt 3.0) { $eff = 3.0 }
 
     $oldFonts = $script:uiFonts
-    $fTitle = New-Object Drawing.Font 'Segoe UI', ([single][math]::Round(10 * $s, 1)), ([Drawing.FontStyle]::Bold)
+    $fTitle = New-Object Drawing.Font $script:UiFontFamily, ([single][math]::Round(10 * $s, 1)), ([Drawing.FontStyle]::Bold)
     $fIcon  = New-Object Drawing.Font 'Segoe MDL2 Assets', ([single][math]::Round(10 * $s, 1))
-    $fName  = New-Object Drawing.Font 'Segoe UI', ([single][math]::Round(8.5 * $s, 1))
-    $fPct   = New-Object Drawing.Font 'Segoe UI', ([single][math]::Round(8.5 * $s, 1)), ([Drawing.FontStyle]::Bold)
-    $fSmall = New-Object Drawing.Font 'Segoe UI', ([single][math]::Round(7.5 * $s, 1))
+    $fName  = New-Object Drawing.Font $script:UiFontFamily, ([single][math]::Round(8.5 * $s, 1))
+    $fPct   = New-Object Drawing.Font $script:UiFontFamily, ([single][math]::Round(8.5 * $s, 1)), ([Drawing.FontStyle]::Bold)
+    $fSmall = New-Object Drawing.Font $script:UiFontFamily, ([single][math]::Round(7.5 * $s, 1))
     $script:uiFonts = @($fTitle, $fIcon, $fName, $fPct, $fSmall)
 
     $script:lblTitle.Font = $fTitle
@@ -911,7 +1134,9 @@ function Update-Layout {
     $script:btnRefresh.Location = New-Object Drawing.Point ($width - $mx - 3 * $btnSize - 2 * $gapSmall), $btnY
 
     $trackW = $width - 2 * $mx
-    $barH = [int][math]::Max(5, [int][math]::Round(8 * $eff))
+    $barH = [int][math]::Max(5, [int][math]::Round($script:ThemeBarH * $eff))
+    $pillR = 0
+    if ($script:ThemeRadius -gt 0) { $pillR = [int][math]::Max(2, [int]($barH / 2)) }
 
     $y = $headerH + [int][math]::Round(8 * $eff)
     foreach ($row in $script:rows) {
@@ -926,6 +1151,7 @@ function Update-Layout {
         $row.track.Size = New-Object Drawing.Size $trackW, $barH
         $row.track.Location = New-Object Drawing.Point $mx, $trackY
         $row.fill.Size = New-Object Drawing.Size 0, $barH
+        Set-PillRegion -Control $row.track -Radius $pillR
 
         $resetY = $trackY + $barH + $gapReset
         $resetH = $row.reset.PreferredHeight
@@ -942,12 +1168,20 @@ function Update-Layout {
     $newH = $y + $statusH + [int][math]::Round(6 * $eff)
     if ($newH -lt 100) { $newH = 100 }
     $form.ClientSize = New-Object Drawing.Size $width, $newH
+    Set-FormRegion -Eff $eff
 
     $gripSize = [int][math]::Max(12, [int][math]::Round(14 * $eff))
     $script:grip.Size = New-Object Drawing.Size $gripSize, $gripSize
     $script:grip.Location = New-Object Drawing.Point ($form.ClientSize.Width - $gripSize), ($form.ClientSize.Height - $gripSize)
 
-    foreach ($f in $oldFonts) { try { $f.Dispose() } catch { } }
+    $inUseFonts = Get-FontsInUse
+    foreach ($f in $oldFonts) {
+        $used = $false
+        foreach ($u in $inUseFonts) {
+            if ([object]::ReferenceEquals($f, $u)) { $used = $true; break }
+        }
+        if (-not $used) { try { $f.Dispose() } catch { } }
+    }
 
     if ($script:cfg.panelMode) {
         if ($script:panelState -eq 'shown') {
@@ -959,7 +1193,9 @@ function Update-Layout {
 
     Update-UI
     } catch {
-        Write-Log ('layout error: ' + $_.Exception.Message)
+        Write-Log ('layout error: ' + $_.Exception.Message + ' | ' + $_.InvocationInfo.PositionMessage + ' | ' + $_.ScriptStackTrace)
+    } finally {
+        $script:inLayout = $false
     }
 }
 
