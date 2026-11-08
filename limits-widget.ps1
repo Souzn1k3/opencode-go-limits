@@ -9,8 +9,28 @@ $ErrorActionPreference = 'Stop'
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+try { Add-Type -AssemblyName System.Net.Http } catch { }
 
-try { [System.Windows.Forms.Application]::SetHighDpiMode([System.Windows.Forms.HighDpiMode]::SystemAware) } catch { }
+$script:DpiMode = 'unaware'
+try {
+    Add-Type -Namespace LimitsDpi -Name Api -MemberDefinition @'
+[DllImport("user32.dll", SetLastError = true)]
+public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
+[DllImport("shcore.dll")]
+public static extern int SetProcessDpiAwareness(int value);
+'@
+    if ([LimitsDpi.Api]::SetProcessDpiAwarenessContext([IntPtr](-4))) {
+        $script:DpiMode = 'permonitor-v2'
+    } else {
+        $hr = [LimitsDpi.Api]::SetProcessDpiAwareness(2)
+        if ($hr -eq 0) {
+            $script:DpiMode = 'permonitor'
+        } else {
+            $hr = [LimitsDpi.Api]::SetProcessDpiAwareness(1)
+            if ($hr -eq 0) { $script:DpiMode = 'system' }
+        }
+    }
+} catch { }
 
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]'Tls13'
@@ -19,6 +39,7 @@ try {
 }
 
 $script:AppName    = 'OpenCode Go Limits'
+$script:AppVersion = '1.4.1'
 $script:AppDir     = Join-Path $env:APPDATA 'opencode-limits-widget'
 $script:ConfigPath = Join-Path $script:AppDir 'config.json'
 $script:LogPath    = Join-Path $script:AppDir 'widget.log'
@@ -131,15 +152,25 @@ function New-RoundedPath {
 function Set-FormRegion {
     param([double]$Eff)
     try {
-        if ($script:ThemeRadius -le 0) { $script:form.Region = $null; return }
+        $old = $script:form.Region
+        if ($script:ThemeRadius -le 0) {
+            $script:form.Region = $null
+            if ($old) { try { $old.Dispose() } catch { } }
+            return
+        }
         $w = $script:form.ClientSize.Width
         $h = $script:form.ClientSize.Height
         if ($w -lt 2 -or $h -lt 2) { return }
         $r = [int][math]::Round($script:ThemeRadius * $Eff)
-        if ($r -lt 2) { $script:form.Region = $null; return }
+        if ($r -lt 2) {
+            $script:form.Region = $null
+            if ($old) { try { $old.Dispose() } catch { } }
+            return
+        }
         $path = New-RoundedPath -W $w -H $h -R $r
         $script:form.Region = New-Object Drawing.Region $path
         $path.Dispose()
+        if ($old) { try { $old.Dispose() } catch { } }
     } catch { }
 }
 
@@ -147,13 +178,16 @@ function Set-PillRegion {
     param([Windows.Forms.Control]$Control, [int]$Radius)
     try {
         if ($null -eq $Control -or $Control.IsDisposed) { return }
+        $old = $Control.Region
         if ($Radius -lt 2 -or $Control.Width -lt 2 -or $Control.Height -lt 2) {
             $Control.Region = $null
+            if ($old) { try { $old.Dispose() } catch { } }
             return
         }
         $path = New-RoundedPath -W $Control.Width -H $Control.Height -R $Radius
         $Control.Region = New-Object Drawing.Region $path
         $path.Dispose()
+        if ($old) { try { $old.Dispose() } catch { } }
     } catch { }
 }
 
@@ -226,19 +260,20 @@ function Invoke-Safe {
 
 function New-DefaultConfig {
     return [pscustomobject]@{
-        refreshMinutes  = 5
-        notify          = $true
-        notifyThreshold = 85
-        autostart       = $true
-        topMost         = $true
-        uiScale         = 1.0
-        theme           = 'classic'
-        panelMode       = $false
-        panelEdge       = 'top'
-        panelScreen     = $null
-        panelX          = $null
-        windowX         = $null
-        windowY         = $null
+        refreshMinutes       = 5
+        notify               = $true
+        notifyThreshold      = 85
+        autostart            = $true
+        autostartInitialized = $false
+        topMost              = $true
+        uiScale              = 1.0
+        theme                = 'classic'
+        panelMode            = $false
+        panelEdge            = 'top'
+        panelScreen          = $null
+        panelX               = $null
+        windowX              = $null
+        windowY              = $null
     }
 }
 
@@ -251,6 +286,9 @@ function Load-Config {
                 if ($null -ne $cfg.PSObject.Properties[$p.Name]) {
                     $cfg.($p.Name) = $p.Value
                 }
+            }
+            if ($null -eq $saved.PSObject.Properties['autostartInitialized']) {
+                $cfg.autostartInitialized = $true
             }
         } catch {
             Write-Log "config read error: $($_.Exception.Message)"
@@ -285,7 +323,7 @@ function Get-Usage {
     param([string]$Key)
     $headers = @{
         Authorization = 'Bearer ' + $Key
-        'User-Agent'  = 'opencode-limits-widget/1.2'
+        'User-Agent'  = 'opencode-limits-widget/' + $script:AppVersion
     }
     $resp = Invoke-RestMethod -Uri $script:UsageUrl -Headers $headers -Method Get -TimeoutSec 20
     if (-not $resp.usage) { throw 'неожиданный ответ API' }
@@ -472,7 +510,7 @@ function Update-UI {
                 if ($script:ThemeRadius -gt 0) {
                     Set-PillRegion -Control $row.fill -Radius ([int][math]::Max(2, [int]($row.fill.Height / 2)))
                 } else {
-                    $row.fill.Region = $null
+                    Set-PillRegion -Control $row.fill -Radius 0
                 }
                 $reset = Format-Reset -Iso $u.resetsAt
                 if ($u.status -and $u.status -notin @('ok', 'active')) { $reset = 'лимит исчерпан · ' + $reset }
@@ -482,7 +520,7 @@ function Update-UI {
                 $row.pct.Text = '—'
                 $row.pct.ForeColor = $script:C_Muted
                 $row.fill.Width = 0
-                $row.fill.Region = $null
+                Set-PillRegion -Control $row.fill -Radius 0
                 $row.reset.Text = ''
             }
         }
@@ -512,41 +550,72 @@ function Update-UI {
     if ($script:cfg.panelMode -and $script:form -and $script:form.IsHandleCreated) { $script:form.Invalidate() }
 }
 
+function Invoke-NotifyCheck {
+    param($Usage)
+    $r = $Usage.PSObject.Properties['rolling'].Value
+    if ($script:cfg.notify -and $r) {
+        $pct = [double]$r.percent
+        $key = '{0}|{1}' -f $r.resetsAt, $script:cfg.notifyThreshold
+        if ($pct -ge [double]$script:cfg.notifyThreshold) {
+            if ($script:notifiedKey -ne $key) {
+                $script:notifiedKey = $key
+                Show-Toast -Title 'OpenCode Go — 5-часовой лимит' -Text ('Использовано {0:N0}% (порог {1}%). {2}. Отключить можно в настройках.' -f $pct, $script:cfg.notifyThreshold, (Format-Reset -Iso $r.resetsAt))
+            }
+        } else {
+            $script:notifiedKey = $null
+        }
+    }
+}
+
+function Set-DataErrorText {
+    param([string]$Message, [int]$Status)
+    $msg = $Message
+    if ($Status -eq 401 -or $msg -match '401') {
+        $script:apiKey = $null
+        $msg = 'ключ отклонён (401) — проверьте auth.json'
+    } elseif ($Status -eq 404 -or $msg -match '404') {
+        $msg = 'сервис лимитов недоступен (404) — возможно, изменился API'
+    } elseif ($msg -match '(?i)cancel|таймаут|timeout') {
+        $msg = 'таймаут запроса — проверьте сеть'
+    }
+    $script:lastError = $msg
+    Write-Log ('update error: ' + $msg)
+}
+
 function Update-Data {
+    if ($script:fetching) { return }
+    if ($null -eq $script:webClient) {
+        try {
+            if (-not $script:apiKey) { $script:apiKey = Get-ApiKey }
+            $usage = Get-Usage -Key $script:apiKey
+            $script:lastUsage = $usage
+            $script:lastError = $null
+            Invoke-NotifyCheck $usage
+        } catch {
+            $status = 0
+            try { if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode } } catch { }
+            Set-DataErrorText $_.Exception.Message $status
+        }
+        Update-UI
+        return
+    }
     try {
         if (-not $script:apiKey) { $script:apiKey = Get-ApiKey }
-        $usage = Get-Usage -Key $script:apiKey
-        $script:lastUsage = $usage
-        $script:lastError = $null
-
-        $r = $usage.PSObject.Properties['rolling'].Value
-        if ($script:cfg.notify -and $r) {
-            $pct = [double]$r.percent
-            $key = '{0}|{1}' -f $r.resetsAt, $script:cfg.notifyThreshold
-            if ($pct -ge [double]$script:cfg.notifyThreshold) {
-                if ($script:notifiedKey -ne $key) {
-                    $script:notifiedKey = $key
-                    Show-Toast -Title 'OpenCode Go — 5-часовой лимит' -Text ('Использовано {0:N0}% (порог {1}%). {2}. Отключить можно в настройках.' -f $pct, $script:cfg.notifyThreshold, (Format-Reset -Iso $r.resetsAt))
-                }
-            } else {
-                $script:notifiedKey = $null
-            }
-        }
+        $script:fetching = $true
+        $wc = $script:webClient
+        $wc.Headers.Clear()
+        $wc.Headers.Add('Authorization', 'Bearer ' + $script:apiKey)
+        $wc.Headers.Add('User-Agent', 'opencode-limits-widget/' + $script:AppVersion)
+        if ($script:fetchTimeoutTimer) { $script:fetchTimeoutTimer.Stop(); $script:fetchTimeoutTimer.Start() }
+        $wc.DownloadStringAsync(([Uri]$script:UsageUrl))
     } catch {
-        $msg = $_.Exception.Message
-        try {
-            if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 401) {
-                $script:apiKey = $null
-                $msg = 'ключ отклонён (401) — проверьте auth.json'
-            } elseif ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 404) {
-                $msg = 'сервис лимитов недоступен (404) — возможно, изменился API'
-            }
-        } catch { }
-        if ($msg -match '401') { $script:apiKey = $null }
-        $script:lastError = $msg
-        Write-Log "update error: $msg"
+        $script:fetching = $false
+        try { if ($script:fetchTimeoutTimer) { $script:fetchTimeoutTimer.Stop() } } catch { }
+        $status = 0
+        try { if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode } } catch { }
+        Set-DataErrorText $_.Exception.Message $status
+        Update-UI
     }
-    Update-UI
 }
 
 function Exit-App {
@@ -565,6 +634,8 @@ function Exit-App {
     try { $script:timer.Stop() } catch { }
     try { $script:uiTimer.Stop() } catch { }
     try { if ($script:toastTimer) { $script:toastTimer.Stop() } } catch { }
+    try { if ($script:fetchTimeoutTimer) { $script:fetchTimeoutTimer.Stop() } } catch { }
+    try { if ($script:webClient) { $script:webClient.Dispose() } } catch { }
     [Windows.Forms.Application]::Exit()
 }
 
@@ -809,13 +880,26 @@ public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 [DllImport("user32.dll")]
 public static extern bool SetForegroundWindow(IntPtr hWnd);
+[DllImport("user32.dll")]
+public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 '@
         Add-Type -Name WinApi -Namespace LimitsWidget -MemberDefinition $signature
         $hwnd = [LimitsWidget.WinApi]::FindWindow([NullString]::Value, $script:AppName)
         if ($hwnd -ne [IntPtr]::Zero) {
-            [void][LimitsWidget.WinApi]::ShowWindow($hwnd, 9)
-            [void][LimitsWidget.WinApi]::SetForegroundWindow($hwnd)
-            Write-Log 'window focused'
+            $hwndPid = [uint32]0
+            [void][LimitsWidget.WinApi]::GetWindowThreadProcessId($hwnd, [ref]$hwndPid)
+            $ours = $false
+            try {
+                $wp = Get-CimInstance Win32_Process -Filter "ProcessId=$hwndPid" -ErrorAction Stop
+                if ($wp -and $wp.Name -eq 'powershell.exe' -and $wp.CommandLine -like '*limits-widget.ps1*') { $ours = $true }
+            } catch { }
+            if ($ours) {
+                [void][LimitsWidget.WinApi]::ShowWindow($hwnd, 9)
+                [void][LimitsWidget.WinApi]::SetForegroundWindow($hwnd)
+                Write-Log 'window focused'
+            } else {
+                Write-Log 'window found but not ours, ignoring'
+            }
         } else {
             Write-Log 'window not found'
         }
@@ -839,6 +923,14 @@ $script:lastError = $null
 $script:apiKey = $null
 $script:notifiedKey = $null
 $script:exiting = $false
+$script:fetching = $false
+$script:webClient = $null
+$script:fetchTimeoutTimer = $null
+try {
+    $script:webClient = New-Object System.Net.WebClient
+} catch {
+    Write-Log ('http init error: ' + $_.Exception.Message)
+}
 $script:dragging = $false
 $script:resizing = $false
 $script:toastForm = $null
@@ -1539,6 +1631,50 @@ $script:uiTimer = $uiTimer
 $uiTimer.Interval = 30000
 $uiTimer.Add_Tick({ Invoke-Safe { Update-UI } 'ui timer' })
 
+if ($script:webClient) {
+    $script:webClient.add_DownloadStringCompleted({
+        param($sender, $e)
+        Invoke-Safe {
+            try { if ($script:fetchTimeoutTimer) { $script:fetchTimeoutTimer.Stop() } } catch { }
+            $script:fetching = $false
+            if ($e.Cancelled) {
+                Set-DataErrorText 'таймаут запроса (20 с)' 0
+            } elseif ($e.Error) {
+                $status = 0
+                try {
+                    if ($e.Error -is [System.Net.WebException] -and $e.Error.Response) { $status = [int]$e.Error.Response.StatusCode }
+                } catch { }
+                Set-DataErrorText $e.Error.Message $status
+            } else {
+                try {
+                    $parsed = $e.Result | ConvertFrom-Json
+                    if ($parsed.usage) {
+                        $script:lastUsage = $parsed.usage
+                        $script:lastError = $null
+                        Invoke-NotifyCheck $parsed.usage
+                    } else {
+                        $script:lastError = 'неожиданный ответ API'
+                        Write-Log 'update error: unexpected API payload'
+                    }
+                } catch {
+                    $script:lastError = 'ошибка разбора ответа API'
+                    Write-Log ('update parse error: ' + $_.Exception.Message)
+                }
+            }
+            Update-UI
+        } 'download completed'
+    })
+}
+
+$fetchTimeoutTimer = New-Object Windows.Forms.Timer
+$script:fetchTimeoutTimer = $fetchTimeoutTimer
+$fetchTimeoutTimer.Interval = 20000
+$fetchTimeoutTimer.Add_Tick({ Invoke-Safe {
+    if ($script:fetching -and $script:webClient) {
+        try { $script:webClient.CancelAsync() } catch { }
+    }
+} 'fetch timeout' })
+
 $animTimer = New-Object Windows.Forms.Timer
 $script:panelAnimTimer = $animTimer
 $animTimer.Interval = $script:PANEL_ANIM_MS
@@ -1684,8 +1820,13 @@ $form.Add_KeyDown({
 
 $form.Add_FormClosed({ Write-Log 'form closed' })
 
-Set-Autostart -Enabled ([bool]$script:cfg.autostart)
+if (-not $script:cfg.autostartInitialized) {
+    Set-Autostart -Enabled ([bool]$script:cfg.autostart)
+    $script:cfg.autostartInitialized = $true
+    Save-Config
+}
 
+Write-Log ('dpi mode: ' + $script:DpiMode)
 Write-Log 'widget started'
 [Windows.Forms.Application]::Run($form)
 Write-Log 'widget stopped'

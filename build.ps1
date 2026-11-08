@@ -11,6 +11,17 @@ if (-not (Test-Path -LiteralPath $csc)) {
 }
 
 $out = Join-Path $dir 'OpenCode Limits.exe'
+
+$scriptVersion = $null
+$scriptMatch = Select-String -LiteralPath (Join-Path $dir 'limits-widget.ps1') -Pattern "`$script:AppVersion\s*=\s*'([^']+)'" | Select-Object -First 1
+if ($scriptMatch) { $scriptVersion = $scriptMatch.Matches[0].Groups[1].Value }
+$launcherVersion = $null
+$launcherMatch = Select-String -LiteralPath (Join-Path $dir 'launcher.cs') -Pattern 'AssemblyVersion\("([^"]+)"\)' | Select-Object -First 1
+if ($launcherMatch) { $launcherVersion = $launcherMatch.Matches[0].Groups[1].Value }
+if ($scriptVersion -and $launcherVersion -and -not $launcherVersion.StartsWith($scriptVersion)) {
+    Write-Warning "Версия launcher.cs ($launcherVersion) не совпадает с limits-widget.ps1 ($scriptVersion)"
+}
+
 & $csc /nologo /target:winexe /optimize+ /out:"$out" `
     /win32icon:"$dir\widget.ico" `
     /r:System.Windows.Forms.dll /r:System.Drawing.dll `
