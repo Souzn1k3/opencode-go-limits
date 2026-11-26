@@ -8,8 +8,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("OpenCode Go Limits")]
 [assembly: AssemblyProduct("OpenCode Go Limits")]
 [assembly: AssemblyDescription("Desktop widget showing OpenCode Go usage limits")]
-[assembly: AssemblyVersion("1.4.1.0")]
-[assembly: AssemblyFileVersion("1.4.1.0")]
+[assembly: AssemblyVersion("1.5.0.0")]
+[assembly: AssemblyFileVersion("1.5.0.0")]
 
 static class Launcher
 {
@@ -31,7 +31,7 @@ static class Launcher
                 if (resource == null)
                 {
                     MessageBox.Show(
-                        "Внутри программы не найден встроенный скрипт. Скачайте exe заново со страницы релизов.",
+                        "Embedded script not found. Download the exe again from Releases.\nВстроенный скрипт не найден. Скачайте exe заново со страницы релизов.",
                         "OpenCode Go Limits", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
@@ -58,7 +58,7 @@ static class Launcher
             {
                 try { Directory.Delete(runDir, true); } catch { }
                 MessageBox.Show(
-                    "Файл виджета повреждён при распаковке. Скачайте exe заново со страницы релизов.",
+                    "Script integrity check failed. Download the exe again from Releases.\nФайл виджета повреждён при распаковке. Скачайте exe заново со страницы релизов.",
                     "OpenCode Go Limits", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
@@ -83,7 +83,7 @@ static class Launcher
         catch (Exception ex)
         {
             MessageBox.Show(
-                "Не удалось запустить виджет: " + ex.Message,
+                "Failed to start widget / Не удалось запустить виджет: " + ex.Message,
                 "OpenCode Go Limits", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }

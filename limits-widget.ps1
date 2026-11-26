@@ -39,7 +39,7 @@ try {
 }
 
 $script:AppName    = 'OpenCode Go Limits'
-$script:AppVersion = '1.4.1'
+$script:AppVersion = '1.5.0'
 $script:AppDir     = Join-Path $env:APPDATA 'opencode-limits-widget'
 $script:ConfigPath = Join-Path $script:AppDir 'config.json'
 $script:LogPath    = Join-Path $script:AppDir 'widget.log'
@@ -200,9 +200,8 @@ function Apply-Theme {
         $script:form.ForeColor = $script:C_Text
         if ($script:lblTitle) { $script:lblTitle.ForeColor = $script:C_Text }
         foreach ($b in @($script:btnRefresh, $script:btnSettings, $script:btnClose)) {
-            if ($b) { $b.BackColor = $script:C_Bg; $b.ForeColor = $script:C_Muted }
+            if ($b) { $b.BackColor = [Drawing.Color]::Transparent; $b.ForeColor = $script:C_Text }
         }
-        if ($script:btnClose) { $script:btnClose.ForeColor = $script:C_Text }
         foreach ($row in $script:rows) {
             $row.name.ForeColor = $script:C_Muted
             $row.reset.ForeColor = $script:C_Muted
@@ -220,9 +219,9 @@ function Apply-Theme {
 }
 
 $script:rows = @(
-    @{ key = 'rolling'; title = '5 часов' },
-    @{ key = 'weekly';  title = 'неделя'  },
-    @{ key = 'monthly'; title = 'месяц'   }
+    @{ key = 'rolling'; titleKey = 'row_5h' },
+    @{ key = 'weekly';  titleKey = 'row_week'  },
+    @{ key = 'monthly'; titleKey = 'row_month'   }
 )
 
 function Write-Log {
@@ -247,6 +246,153 @@ function Invoke-Safe {
     }
 }
 
+function Get-Strings {
+    param([string]$Lang)
+    if ($Lang -eq 'en') {
+        return @{
+            row_5h            = '5 hours'
+            row_week          = 'Weekly'
+            row_month         = 'Monthly'
+            err_no_opencode   = 'OpenCode is not configured. Install opencode and run: opencode auth login'
+            err_only_zen      = 'OpenCode Go subscription required: only a Zen key was found; limits are available on Go'
+            err_no_go_key     = 'OpenCode Go subscription required: no opencode-go key in auth.json'
+            err_unexpected    = 'unexpected API response'
+            err_parse         = 'failed to parse API response'
+            err_401           = 'API key rejected (401) - check auth.json'
+            err_404           = 'limits service unavailable (404) - API may have changed'
+            err_timeout       = 'request timed out - check your network'
+            err_timeout_short = 'request timed out (20 s)'
+            reset_now         = 'resets now'
+            unit_d            = 'd'
+            unit_h            = 'h'
+            unit_min          = 'min'
+            reset_prefix      = 'resets in {0} · {1:dd.MM HH:mm}'
+            reset_full        = 'exact reset time: '
+            limit_reached     = 'limit reached · '
+            error_prefix      = 'error: '
+            updated           = 'updated '
+            loading           = 'loading...'
+            toast_title       = 'OpenCode Go - 5-hour limit'
+            toast_text        = 'Used {0:N0}% (threshold {1}%). {2}. Can be disabled in Settings.'
+            dlg_title         = 'Settings'
+            dlg_interval      = 'Refresh interval (min):'
+            dlg_notify        = 'Notify when the 5-hour limit exceeds the threshold'
+            dlg_threshold     = 'Threshold, %:'
+            dlg_autostart     = 'Start with Windows'
+            dlg_topmost       = 'Always on top'
+            dlg_panel         = 'Panel at screen edge'
+            dlg_edge          = 'Screen edge:'
+            edge_top          = 'Top'
+            edge_bottom       = 'Bottom'
+            edge_left         = 'Left'
+            edge_right        = 'Right'
+            dlg_style         = 'One UI style'
+            dlg_lang          = 'Language:'
+            dlg_hint          = 'Hover the cursor near the tab at the selected edge'
+            btn_save          = 'Save'
+            btn_cancel        = 'Cancel'
+            menu_refresh      = 'Refresh now  (F5)'
+            menu_notify       = '5-hour limit notifications'
+            menu_autostart    = 'Start with Windows'
+            menu_topmost      = 'Always on top'
+            menu_panel        = 'Panel at screen edge'
+            menu_settings     = 'Settings...'
+            menu_exit         = 'Exit'
+            tip_refresh       = 'Refresh now (F5)'
+            tip_settings      = 'Settings'
+            tip_close         = 'Close'
+            tip_grip          = 'Drag the corner to resize'
+        }
+    }
+    return @{
+        row_5h            = '5 часов'
+        row_week          = 'неделя'
+        row_month         = 'месяц'
+        err_no_opencode   = 'OpenCode не настроен. Установите opencode и войдите: opencode auth login'
+        err_only_zen      = 'Нужна подписка OpenCode Go: найден только ключ Zen, а лимиты доступны на тарифе Go'
+        err_no_go_key     = 'Нужна подписка OpenCode Go: ключ opencode-go не найден в auth.json'
+        err_unexpected    = 'неожиданный ответ API'
+        err_parse         = 'ошибка разбора ответа API'
+        err_401           = 'ключ отклонён (401) — проверьте auth.json'
+        err_404           = 'сервис лимитов недоступен (404) — возможно, изменился API'
+        err_timeout       = 'таймаут запроса — проверьте сеть'
+        err_timeout_short = 'таймаут запроса (20 с)'
+        reset_now         = 'сброс сейчас'
+        unit_d            = 'д'
+        unit_h            = 'ч'
+        unit_min          = 'мин'
+        reset_prefix      = 'сброс через {0} · {1:dd.MM HH:mm}'
+        reset_full        = 'точное время сброса: '
+        limit_reached     = 'лимит исчерпан · '
+        error_prefix      = 'ошибка: '
+        updated           = 'обновлено '
+        loading           = 'загрузка...'
+        toast_title       = 'OpenCode Go — 5-часовой лимит'
+        toast_text        = 'Использовано {0:N0}% (порог {1}%). {2}. Отключить можно в настройках.'
+        dlg_title         = 'Настройки'
+        dlg_interval      = 'Интервал обновления (мин):'
+        dlg_notify        = 'Уведомлять о 5ч-лимите при превышении порога'
+        dlg_threshold     = 'Порог, %:'
+        dlg_autostart     = 'Запускать при входе в Windows'
+        dlg_topmost       = 'Окно всегда поверх других окон'
+        dlg_panel         = 'Панель у края экрана'
+        dlg_edge          = 'Край экрана:'
+        edge_top          = 'Сверху'
+        edge_bottom       = 'Снизу'
+        edge_left         = 'Слева'
+        edge_right        = 'Справа'
+        dlg_style         = 'Стиль One UI'
+        dlg_lang          = 'Язык:'
+        dlg_hint          = 'Наведи курсор на язычок у выбранного края'
+        btn_save          = 'Сохранить'
+        btn_cancel        = 'Отмена'
+        menu_refresh      = 'Обновить сейчас  (F5)'
+        menu_notify       = 'Уведомления о 5ч-лимите'
+        menu_autostart    = 'Автозапуск с Windows'
+        menu_topmost      = 'Поверх всех окон'
+        menu_panel        = 'Панель у края экрана'
+        menu_settings     = 'Настройки...'
+        menu_exit         = 'Выход'
+        tip_refresh       = 'Обновить сейчас (F5)'
+        tip_settings      = 'Настройки'
+        tip_close         = 'Закрыть'
+        tip_grip          = 'Потяни за уголок, чтобы изменить размер'
+    }
+}
+
+function T {
+    param([string]$Key)
+    if ($script:L -and $script:L.ContainsKey($Key)) { return $script:L[$Key] }
+    return $Key
+}
+
+function Apply-Language {
+    param([string]$Lang)
+    $script:cfg.language = $Lang
+    $script:L = Get-Strings $Lang
+    foreach ($row in $script:rows) { $row.name.Text = T($row.titleKey) }
+    $m = $script:MenuItems
+    if ($m) {
+        $m.refresh.Text = T('menu_refresh')
+        $m.notify.Text = T('menu_notify')
+        $m.autostart.Text = T('menu_autostart')
+        $m.top.Text = T('menu_topmost')
+        $m.panel.Text = T('menu_panel')
+        $m.settings.Text = T('menu_settings')
+        $m.exit.Text = T('menu_exit')
+    }
+    if ($script:tip) {
+        $script:tip.SetToolTip($script:btnRefresh, (T 'tip_refresh'))
+        $script:tip.SetToolTip($script:btnSettings, (T 'tip_settings'))
+        $script:tip.SetToolTip($script:btnClose, (T 'tip_close'))
+        if ($script:grip) { $script:tip.SetToolTip($script:grip, (T 'tip_grip')) }
+    }
+    if ($script:form) { $script:form.Invalidate() }
+    Update-UI
+}
+
+$script:L = Get-Strings 'ru'
+
 [Windows.Forms.Application]::add_ThreadException({
     param($sender, $e)
     try { Write-Log ('thread exception: ' + $e.Exception.ToString()) } catch { }
@@ -263,6 +409,7 @@ function New-DefaultConfig {
         refreshMinutes       = 5
         notify               = $true
         notifyThreshold      = 85
+        language             = 'ru'
         autostart            = $true
         autostartInitialized = $false
         topMost              = $true
@@ -307,16 +454,16 @@ function Save-Config {
 
 function Get-ApiKey {
     if (-not (Test-Path -LiteralPath $script:AuthPath)) {
-        throw 'OpenCode не настроен. Установите opencode и войдите: opencode auth login'
+        throw (T 'err_no_opencode')
     }
     $json = Get-Content -LiteralPath $script:AuthPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $entry = $json.PSObject.Properties['opencode-go']
     if ($entry -and $entry.Value.key) { return [string]$entry.Value.key }
     $zen = $json.PSObject.Properties['opencode']
     if ($zen -and $zen.Value.key) {
-        throw 'Нужна подписка OpenCode Go: найден только ключ Zen, а лимиты доступны на тарифе Go'
+        throw (T 'err_only_zen')
     }
-    throw 'Нужна подписка OpenCode Go: ключ opencode-go не найден в auth.json'
+    throw (T 'err_no_go_key')
 }
 
 function Get-Usage {
@@ -326,7 +473,7 @@ function Get-Usage {
         'User-Agent'  = 'opencode-limits-widget/' + $script:AppVersion
     }
     $resp = Invoke-RestMethod -Uri $script:UsageUrl -Headers $headers -Method Get -TimeoutSec 20
-    if (-not $resp.usage) { throw 'неожиданный ответ API' }
+    if (-not $resp.usage) { throw (T 'err_unexpected') }
     return $resp.usage
 }
 
@@ -343,11 +490,11 @@ function Format-Reset {
     try {
         $dt = [datetime]::Parse($Iso, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind).ToLocalTime()
         $d = $dt - [datetime]::Now
-        if ($d.TotalSeconds -le 0) { return 'сброс сейчас' }
-        if ($d.TotalDays -ge 1) { $rel = '{0} д {1} ч' -f [int][math]::Floor($d.TotalDays), $d.Hours }
-        elseif ($d.TotalHours -ge 1) { $rel = '{0} ч {1} мин' -f [int][math]::Floor($d.TotalHours), $d.Minutes }
-        else { $rel = '{0} мин' -f [math]::Max(1, [int][math]::Floor($d.TotalMinutes)) }
-        return 'сброс через {0} · {1:dd.MM HH:mm}' -f $rel, $dt
+        if ($d.TotalSeconds -le 0) { return T('reset_now') }
+        if ($d.TotalDays -ge 1) { $rel = '{0} {1} {2} {3}' -f [int][math]::Floor($d.TotalDays), (T 'unit_d'), $d.Hours, (T 'unit_h') }
+        elseif ($d.TotalHours -ge 1) { $rel = '{0} {1} {2} {3}' -f [int][math]::Floor($d.TotalHours), (T 'unit_h'), $d.Minutes, (T 'unit_min') }
+        else { $rel = '{0} {1}' -f [math]::Max(1, [int][math]::Floor($d.TotalMinutes)), (T 'unit_min') }
+        return ((T 'reset_prefix') -f $rel, $dt)
     } catch {
         return ''
     }
@@ -358,7 +505,7 @@ function Format-ResetFull {
     if (-not $Iso) { return '' }
     try {
         $dt = [datetime]::Parse($Iso, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind).ToLocalTime()
-        return 'точное время сброса: ' + $dt.ToString('dd.MM.yyyy HH:mm:ss')
+        return (T 'reset_full') + $dt.ToString('dd.MM.yyyy HH:mm:ss')
     } catch {
         return ''
     }
@@ -488,11 +635,30 @@ function New-IconButton {
     $b.Location = New-Object Drawing.Point $X, $Y
     $b.FlatStyle = [Windows.Forms.FlatStyle]::Flat
     $b.FlatAppearance.BorderSize = 0
-    $b.FlatAppearance.MouseOverBackColor = $script:C_BgAlt
-    $b.FlatAppearance.MouseDownBackColor = $script:C_Track
-    $b.BackColor = $script:C_Bg
-    $b.ForeColor = $script:C_Muted
+    $b.FlatAppearance.MouseOverBackColor = [Drawing.Color]::Transparent
+    $b.FlatAppearance.MouseDownBackColor = [Drawing.Color]::Transparent
+    $b.BackColor = [Drawing.Color]::Transparent
+    $b.ForeColor = $script:C_Text
     $b.TabStop = $false
+    $b.Tag = @{ hover = $false }
+    $b.Add_MouseEnter({ $this.Tag['hover'] = $true; $this.Invalidate() })
+    $b.Add_MouseLeave({ $this.Tag['hover'] = $false; $this.Invalidate() })
+    $b.Add_Paint({
+        param($s, $e)
+        try {
+            if (-not $s.Tag['hover']) { return }
+            $g = $e.Graphics
+            $g.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
+            if ($script:cfg.theme -eq 'oneui') {
+                $col = [Drawing.Color]::FromArgb(60, $script:C_Accent.R, $script:C_Accent.G, $script:C_Accent.B)
+            } else {
+                $col = [Drawing.Color]::FromArgb(70, $script:C_BgAlt.R, $script:C_BgAlt.G, $script:C_BgAlt.B)
+            }
+            $br = New-Object Drawing.SolidBrush $col
+            $g.FillEllipse($br, 1, 1, ($s.ClientSize.Width - 2), ($s.ClientSize.Height - 2))
+            $br.Dispose()
+        } catch { }
+    })
     if ($Tip) { $script:tip.SetToolTip($b, $Tip) }
     return $b
 }
@@ -513,7 +679,7 @@ function Update-UI {
                     Set-PillRegion -Control $row.fill -Radius 0
                 }
                 $reset = Format-Reset -Iso $u.resetsAt
-                if ($u.status -and $u.status -notin @('ok', 'active')) { $reset = 'лимит исчерпан · ' + $reset }
+                if ($u.status -and $u.status -notin @('ok', 'active')) { $reset = (T 'limit_reached') + $reset }
                 $row.reset.Text = $reset
                 if ($script:tip) { $script:tip.SetToolTip($row.reset, (Format-ResetFull -Iso $u.resetsAt)) }
             } else {
@@ -533,7 +699,7 @@ function Update-UI {
     }
 
     if ($script:lastError) {
-        $text = 'ошибка: ' + $script:lastError
+        $text = (T 'error_prefix') + $script:lastError
         if ($text.Length -gt 62) {
             $script:status.Text = $text.Substring(0, 60) + '...'
         } else {
@@ -542,7 +708,7 @@ function Update-UI {
         $script:status.ForeColor = $script:C_Red
         if ($script:tip) { $script:tip.SetToolTip($script:status, $script:lastError) }
     } else {
-        $script:status.Text = 'обновлено ' + (Get-Date).ToString('HH:mm:ss')
+        $script:status.Text = (T 'updated') + (Get-Date).ToString('HH:mm:ss')
         $script:status.ForeColor = $script:C_Muted
         if ($script:tip) { $script:tip.SetToolTip($script:status, '') }
     }
@@ -559,7 +725,7 @@ function Invoke-NotifyCheck {
         if ($pct -ge [double]$script:cfg.notifyThreshold) {
             if ($script:notifiedKey -ne $key) {
                 $script:notifiedKey = $key
-                Show-Toast -Title 'OpenCode Go — 5-часовой лимит' -Text ('Использовано {0:N0}% (порог {1}%). {2}. Отключить можно в настройках.' -f $pct, $script:cfg.notifyThreshold, (Format-Reset -Iso $r.resetsAt))
+                Show-Toast -Title (T 'toast_title') -Text ((T 'toast_text') -f $pct, $script:cfg.notifyThreshold, (Format-Reset -Iso $r.resetsAt))
             }
         } else {
             $script:notifiedKey = $null
@@ -572,11 +738,11 @@ function Set-DataErrorText {
     $msg = $Message
     if ($Status -eq 401 -or $msg -match '401') {
         $script:apiKey = $null
-        $msg = 'ключ отклонён (401) — проверьте auth.json'
+        $msg = T('err_401')
     } elseif ($Status -eq 404 -or $msg -match '404') {
-        $msg = 'сервис лимитов недоступен (404) — возможно, изменился API'
-    } elseif ($msg -match '(?i)cancel|таймаут|timeout') {
-        $msg = 'таймаут запроса — проверьте сеть'
+        $msg = T('err_404')
+    } elseif ($msg -match '(?i)cancel|таймаут|timeout|timed out') {
+        $msg = T('err_timeout')
     }
     $script:lastError = $msg
     Write-Log ('update error: ' + $msg)
@@ -624,7 +790,11 @@ function Exit-App {
     $script:exiting = $true
     try {
         if ($script:cfg.panelMode) {
-            $script:cfg.panelX = $script:form.Location.X
+            if ($script:cfg.panelEdge -eq 'left' -or $script:cfg.panelEdge -eq 'right') {
+                $script:cfg.panelX = $script:form.Location.Y
+            } else {
+                $script:cfg.panelX = $script:form.Location.X
+            }
         } else {
             $script:cfg.windowX = $script:form.Location.X
             $script:cfg.windowY = $script:form.Location.Y
@@ -641,7 +811,7 @@ function Exit-App {
 
 function Show-Settings {
     $dlg = New-Object Windows.Forms.Form
-    $dlg.Text = 'Настройки'
+    $dlg.Text = T('dlg_title')
     $dlg.FormBorderStyle = [Windows.Forms.FormBorderStyle]::FixedDialog
     $dlg.MaximizeBox = $false
     $dlg.MinimizeBox = $false
@@ -650,11 +820,11 @@ function Show-Settings {
     $dlg.BackColor = $script:C_Bg
     $dlg.ForeColor = $script:C_Text
     $dlg.TopMost = $true
-    $dlg.ClientSize = New-Object Drawing.Size 340, 328
+    $dlg.ClientSize = New-Object Drawing.Size 340, 358
     $dlg.Font = New-Object Drawing.Font $script:UiFontFamily, 9
 
     $lbl1 = New-Object Windows.Forms.Label
-    $lbl1.Text = 'Интервал обновления (мин):'
+    $lbl1.Text = T('dlg_interval')
     $lbl1.Location = New-Object Drawing.Point 18, 20
     $lbl1.AutoSize = $true
     $lbl1.ForeColor = $script:C_Text
@@ -670,7 +840,7 @@ function Show-Settings {
     $numInterval.BorderStyle = [Windows.Forms.BorderStyle]::FixedSingle
 
     $cbNotify = New-Object Windows.Forms.CheckBox
-    $cbNotify.Text = 'Уведомлять о 5ч-лимите при превышении порога'
+    $cbNotify.Text = T('dlg_notify')
     $cbNotify.Location = New-Object Drawing.Point 18, 54
     $cbNotify.Size = New-Object Drawing.Size 306, 20
     $cbNotify.AutoSize = $false
@@ -680,7 +850,7 @@ function Show-Settings {
     $cbNotify.UseVisualStyleBackColor = $false
 
     $lbl2 = New-Object Windows.Forms.Label
-    $lbl2.Text = 'Порог, %:'
+    $lbl2.Text = T('dlg_threshold')
     $lbl2.Location = New-Object Drawing.Point 38, 86
     $lbl2.AutoSize = $true
     $lbl2.ForeColor = $script:C_Text
@@ -696,7 +866,7 @@ function Show-Settings {
     $numThreshold.BorderStyle = [Windows.Forms.BorderStyle]::FixedSingle
 
     $cbAutostart = New-Object Windows.Forms.CheckBox
-    $cbAutostart.Text = 'Запускать при входе в Windows'
+    $cbAutostart.Text = T('dlg_autostart')
     $cbAutostart.Location = New-Object Drawing.Point 18, 116
     $cbAutostart.Size = New-Object Drawing.Size 306, 20
     $cbAutostart.AutoSize = $false
@@ -706,7 +876,7 @@ function Show-Settings {
     $cbAutostart.UseVisualStyleBackColor = $false
 
     $cbTopMost = New-Object Windows.Forms.CheckBox
-    $cbTopMost.Text = 'Окно всегда поверх других окон'
+    $cbTopMost.Text = T('dlg_topmost')
     $cbTopMost.Location = New-Object Drawing.Point 18, 144
     $cbTopMost.Size = New-Object Drawing.Size 306, 20
     $cbTopMost.AutoSize = $false
@@ -716,7 +886,7 @@ function Show-Settings {
     $cbTopMost.UseVisualStyleBackColor = $false
 
     $cbPanel = New-Object Windows.Forms.CheckBox
-    $cbPanel.Text = 'Панель у края экрана'
+    $cbPanel.Text = T('dlg_panel')
     $cbPanel.Location = New-Object Drawing.Point 18, 172
     $cbPanel.Size = New-Object Drawing.Size 306, 20
     $cbPanel.AutoSize = $false
@@ -726,7 +896,7 @@ function Show-Settings {
     $cbPanel.UseVisualStyleBackColor = $false
 
     $lblEdge = New-Object Windows.Forms.Label
-    $lblEdge.Text = 'Край экрана:'
+    $lblEdge.Text = T('dlg_edge')
     $lblEdge.Location = New-Object Drawing.Point 38, 200
     $lblEdge.AutoSize = $true
     $lblEdge.ForeColor = $script:C_Text
@@ -738,10 +908,10 @@ function Show-Settings {
     $cbEdge.FlatStyle = [Windows.Forms.FlatStyle]::Flat
     $cbEdge.BackColor = $script:C_BgAlt
     $cbEdge.ForeColor = $script:C_Text
-    [void]$cbEdge.Items.Add('Сверху')
-    [void]$cbEdge.Items.Add('Снизу')
-    [void]$cbEdge.Items.Add('Слева')
-    [void]$cbEdge.Items.Add('Справа')
+    [void]$cbEdge.Items.Add((T 'edge_top'))
+    [void]$cbEdge.Items.Add((T 'edge_bottom'))
+    [void]$cbEdge.Items.Add((T 'edge_left'))
+    [void]$cbEdge.Items.Add((T 'edge_right'))
     $edgeIndex = 0
     if ($script:cfg.panelEdge -eq 'bottom') { $edgeIndex = 1 }
     elseif ($script:cfg.panelEdge -eq 'left') { $edgeIndex = 2 }
@@ -749,7 +919,7 @@ function Show-Settings {
     $cbEdge.SelectedIndex = $edgeIndex
 
     $lblStyle = New-Object Windows.Forms.Label
-    $lblStyle.Text = 'Стиль One UI'
+    $lblStyle.Text = T('dlg_style')
     $lblStyle.Location = New-Object Drawing.Point 38, 230
     $lblStyle.AutoSize = $true
     $lblStyle.ForeColor = $script:C_Text
@@ -767,18 +937,24 @@ function Show-Settings {
             $g = $e.Graphics
             $g.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
             $on = [bool]$script:dlgThemeOn
-            if ($on) { $trackCol = $script:C_Accent } else { $trackCol = $script:C_Track }
             $w = $s.ClientSize.Width
             $h = $s.ClientSize.Height
-            $path = New-RoundedPath -W ($w - 2) -H ($h - 4) -R ([int](($h - 4) / 2))
+            $trackH = $h - 4
+            $trackY = 2
+            $trackX = 1
+            $trackW = $w - 2
+            $r = [int]($trackH / 2)
+            if ($on) { $trackCol = $script:C_Accent } else { $trackCol = $script:C_Track }
             $brush = New-Object Drawing.SolidBrush $trackCol
-            $g.FillPath($brush, $path)
+            $g.FillEllipse($brush, $trackX, $trackY, $trackH, $trackH)
+            $g.FillEllipse($brush, ($trackX + $trackW - $trackH), $trackY, $trackH, $trackH)
+            $g.FillRectangle($brush, ($trackX + $r), $trackY, ($trackW - $trackH), $trackH)
             $brush.Dispose()
-            $path.Dispose()
-            $k = $h - 8
-            if ($on) { $kx = $w - $k - 5 } else { $kx = 5 }
+            $k = $trackH - 4
+            $ky = $trackY + 2
+            if ($on) { $kx = $trackX + $trackW - $k - 2 } else { $kx = $trackX + 2 }
             $kbrush = New-Object Drawing.SolidBrush ([Drawing.Color]::White)
-            $g.FillEllipse($kbrush, $kx, 4, $k, $k)
+            $g.FillEllipse($kbrush, $kx, $ky, $k, $k)
             $kbrush.Dispose()
         } catch { }
     })
@@ -787,26 +963,43 @@ function Show-Settings {
         $tgStyle.Invalidate()
     })
 
+    $lblLang = New-Object Windows.Forms.Label
+    $lblLang.Text = T('dlg_lang')
+    $lblLang.Location = New-Object Drawing.Point 38, 258
+    $lblLang.AutoSize = $true
+    $lblLang.ForeColor = $script:C_Text
+
+    $cbLang = New-Object Windows.Forms.ComboBox
+    $cbLang.Location = New-Object Drawing.Point 234, 255
+    $cbLang.Size = New-Object Drawing.Size 88, 24
+    $cbLang.DropDownStyle = [Windows.Forms.ComboBoxStyle]::DropDownList
+    $cbLang.FlatStyle = [Windows.Forms.FlatStyle]::Flat
+    $cbLang.BackColor = $script:C_BgAlt
+    $cbLang.ForeColor = $script:C_Text
+    [void]$cbLang.Items.Add('Русский')
+    [void]$cbLang.Items.Add('English')
+    if ($script:cfg.language -eq 'en') { $cbLang.SelectedIndex = 1 } else { $cbLang.SelectedIndex = 0 }
+
     $lblPanelHint = New-Object Windows.Forms.Label
-    $lblPanelHint.Text = 'Наведи курсор на язычок у выбранного края'
-    $lblPanelHint.Location = New-Object Drawing.Point 38, 256
+    $lblPanelHint.Text = T('dlg_hint')
+    $lblPanelHint.Location = New-Object Drawing.Point 38, 286
     $lblPanelHint.AutoSize = $true
     $lblPanelHint.Font = New-Object Drawing.Font $script:UiFontFamily, 8.5
     $lblPanelHint.ForeColor = [Drawing.Color]::FromArgb(170, 176, 185)
 
     $btnSave = New-Object Windows.Forms.Button
-    $btnSave.Text = 'Сохранить'
+    $btnSave.Text = T('btn_save')
     $btnSave.Size = New-Object Drawing.Size 88, 28
-    $btnSave.Location = New-Object Drawing.Point 234, 286
+    $btnSave.Location = New-Object Drawing.Point 234, 316
     $btnSave.FlatStyle = [Windows.Forms.FlatStyle]::Flat
     $btnSave.BackColor = $script:C_BgAlt
     $btnSave.ForeColor = $script:C_Text
     $btnSave.FlatAppearance.BorderColor = $script:C_Border
 
     $btnCancel = New-Object Windows.Forms.Button
-    $btnCancel.Text = 'Отмена'
+    $btnCancel.Text = T('btn_cancel')
     $btnCancel.Size = New-Object Drawing.Size 88, 28
-    $btnCancel.Location = New-Object Drawing.Point 138, 286
+    $btnCancel.Location = New-Object Drawing.Point 138, 316
     $btnCancel.FlatStyle = [Windows.Forms.FlatStyle]::Flat
     $btnCancel.BackColor = $script:C_BgAlt
     $btnCancel.ForeColor = $script:C_Text
@@ -838,13 +1031,18 @@ function Show-Settings {
             $script:cfg.theme = $newTheme
             Apply-Theme $newTheme
         }
+        $newLang = 'ru'
+        if ($cbLang.SelectedIndex -eq 1) { $newLang = 'en' }
+        if ($newLang -ne $script:cfg.language) {
+            Apply-Language $newLang
+        }
         $script:notifiedKey = $null
         Save-Config
         Write-Log 'settings saved'
         $dlg.Close()
     })
 
-    $dlg.Controls.AddRange(@($lbl1, $numInterval, $cbNotify, $lbl2, $numThreshold, $cbAutostart, $cbTopMost, $cbPanel, $lblEdge, $cbEdge, $lblStyle, $tgStyle, $lblPanelHint, $btnSave, $btnCancel))
+    $dlg.Controls.AddRange(@($lbl1, $numInterval, $cbNotify, $lbl2, $numThreshold, $cbAutostart, $cbTopMost, $cbPanel, $lblEdge, $cbEdge, $lblStyle, $tgStyle, $lblLang, $cbLang, $lblPanelHint, $btnSave, $btnCancel))
     $dlg.AcceptButton = $btnSave
     $dlg.CancelButton = $btnCancel
     [void]$dlg.ShowDialog($script:form)
@@ -916,6 +1114,8 @@ $script:cfg = Load-Config
 $script:cfg.uiScale = [double][math]::Max(0.75, [math]::Min(1.6, [double]$script:cfg.uiScale))
 if ($script:cfg.panelEdge -notin @('top', 'bottom', 'left', 'right')) { $script:cfg.panelEdge = 'top' }
 if ($script:cfg.theme -notin @('classic', 'oneui')) { $script:cfg.theme = 'classic' }
+if ($script:cfg.language -notin @('ru', 'en')) { $script:cfg.language = 'ru' }
+$script:L = Get-Strings $script:cfg.language
 Apply-ThemeVars $script:cfg.theme
 $script:UiFontFamily = Resolve-ThemeFont $script:cfg.theme
 $script:lastUsage = $null
@@ -962,15 +1162,24 @@ $menu.BackColor = $script:C_BgAlt
 $menu.ForeColor = $script:C_Text
 $menu.ShowImageMargin = $false
 
-$miRefresh = $menu.Items.Add('Обновить сейчас  (F5)')
+$miRefresh = $menu.Items.Add((T 'menu_refresh'))
 [void]$menu.Items.Add('-')
-$miNotify = $menu.Items.Add('Уведомления о 5ч-лимите')
-$miAutostart = $menu.Items.Add('Автозапуск с Windows')
-$miTop = $menu.Items.Add('Поверх всех окон')
-$miPanel = $menu.Items.Add('Панель у края экрана')
-$miSettings = $menu.Items.Add('Настройки...')
+$miNotify = $menu.Items.Add((T 'menu_notify'))
+$miAutostart = $menu.Items.Add((T 'menu_autostart'))
+$miTop = $menu.Items.Add((T 'menu_topmost'))
+$miPanel = $menu.Items.Add((T 'menu_panel'))
+$miSettings = $menu.Items.Add((T 'menu_settings'))
 [void]$menu.Items.Add('-')
-$miExit = $menu.Items.Add('Выход')
+$miExit = $menu.Items.Add((T 'menu_exit'))
+$script:MenuItems = @{
+    refresh   = $miRefresh
+    notify    = $miNotify
+    autostart = $miAutostart
+    top       = $miTop
+    panel     = $miPanel
+    settings  = $miSettings
+    exit      = $miExit
+}
 
 $menu.Add_Opening({
     $miNotify.Checked = [bool]$script:cfg.notify
@@ -1054,7 +1263,7 @@ $form.Add_Paint({
             $e.Graphics.DrawRectangle($pen, 0, 0, ($cw - 1), ($ch - 1))
         }
         $pen.Dispose()
-        if ($script:cfg.panelMode -and $script:panelState -ne 'shown') {
+        if ($script:cfg.panelMode -and $script:panelState -eq 'hidden') {
             $tabBrush = New-Object Drawing.SolidBrush (Get-BarColor -Percent $script:worstPct)
             $edge = $script:cfg.panelEdge
             if ($edge -eq 'bottom') {
@@ -1081,9 +1290,9 @@ $lblTitle.AutoSize = $true
 $lblTitle.BackColor = [Drawing.Color]::Transparent
 $form.Controls.Add($lblTitle)
 
-$btnRefresh = New-IconButton -Glyph ([char]0xE72C) -X 228 -Y 6 -Tip 'Обновить сейчас (F5)'
-$btnSettings = New-IconButton -Glyph ([char]0xE713) -X 256 -Y 6 -Tip 'Настройки'
-$btnClose = New-IconButton -Glyph ([char]0xE8BB) -X 284 -Y 6 -Tip 'Закрыть'
+$btnRefresh = New-IconButton -Glyph ([char]0xE72C) -X 228 -Y 6 -Tip (T 'tip_refresh')
+$btnSettings = New-IconButton -Glyph ([char]0xE713) -X 256 -Y 6 -Tip (T 'tip_settings')
+$btnClose = New-IconButton -Glyph ([char]0xE8BB) -X 284 -Y 6 -Tip (T 'tip_close')
 $script:btnRefresh = $btnRefresh
 $script:btnSettings = $btnSettings
 $script:btnClose = $btnClose
@@ -1099,7 +1308,7 @@ $y = 46
 $lastBottom = 0
 foreach ($row in $script:rows) {
     $lblName = New-Object Windows.Forms.Label
-    $lblName.Text = $row.title
+    $lblName.Text = T($row.titleKey)
     $lblName.Font = New-Object Drawing.Font 'Segoe UI', 8.5
     $lblName.ForeColor = $script:C_Muted
     $lblName.Location = New-Object Drawing.Point 12, $y
@@ -1149,7 +1358,7 @@ foreach ($row in $script:rows) {
 }
 
 $status = New-Object Windows.Forms.Label
-$status.Text = 'загрузка...'
+$status.Text = T('loading')
 $status.Font = New-Object Drawing.Font 'Segoe UI', 7.5
 $status.ForeColor = $script:C_Muted
 $status.Location = New-Object Drawing.Point 12, ($lastBottom + 6)
@@ -1314,12 +1523,12 @@ function Get-PanelScreen {
     if ($edge -eq 'left' -or $edge -eq 'right') {
         $center = [int]$script:cfg.panelX + [int]($h / 2)
         foreach ($sc in $screens) {
-            if ($center -ge $sc.Bounds.Top -and $center -lt $sc.Bounds.Bottom) { return $sc }
+            if ($center -ge $sc.WorkingArea.Top -and $center -lt $sc.WorkingArea.Bottom) { return $sc }
         }
         $best = $screens[0]
-        $bestD = [math]::Abs($center - ($best.Bounds.Top + $best.Bounds.Height / 2))
+        $bestD = [math]::Abs($center - ($best.WorkingArea.Top + $best.WorkingArea.Height / 2))
         foreach ($sc in $screens) {
-            $scc = $sc.Bounds.Top + $sc.Bounds.Height / 2
+            $scc = $sc.WorkingArea.Top + $sc.WorkingArea.Height / 2
             $d = [math]::Abs($center - $scc)
             if ($d -lt $bestD) { $best = $sc; $bestD = $d }
         }
@@ -1327,12 +1536,12 @@ function Get-PanelScreen {
     } else {
         $center = [int]$script:cfg.panelX + [int]($w / 2)
         foreach ($sc in $screens) {
-            if ($center -ge $sc.Bounds.Left -and $center -lt $sc.Bounds.Right) { return $sc }
+            if ($center -ge $sc.WorkingArea.Left -and $center -lt $sc.WorkingArea.Right) { return $sc }
         }
         $best = $screens[0]
-        $bestD = [math]::Abs($center - ($best.Bounds.Left + $best.Bounds.Width / 2))
+        $bestD = [math]::Abs($center - ($best.WorkingArea.Left + $best.WorkingArea.Width / 2))
         foreach ($sc in $screens) {
-            $scc = $sc.Bounds.Left + $sc.Bounds.Width / 2
+            $scc = $sc.WorkingArea.Left + $sc.WorkingArea.Width / 2
             $d = [math]::Abs($center - $scc)
             if ($d -lt $bestD) { $best = $sc; $bestD = $d }
         }
@@ -1584,7 +1793,7 @@ $grip.Add_Paint({
 })
 $form.Controls.Add($grip)
 $script:grip = $grip
-$script:tip.SetToolTip($grip, 'Потяни за уголок, чтобы изменить размер')
+$script:tip.SetToolTip($grip, (T 'tip_grip'))
 
 $grip.Add_MouseDown({
     param($s, $e)
@@ -1638,7 +1847,7 @@ if ($script:webClient) {
             try { if ($script:fetchTimeoutTimer) { $script:fetchTimeoutTimer.Stop() } } catch { }
             $script:fetching = $false
             if ($e.Cancelled) {
-                Set-DataErrorText 'таймаут запроса (20 с)' 0
+                Set-DataErrorText (T 'err_timeout_short') 0
             } elseif ($e.Error) {
                 $status = 0
                 try {
@@ -1653,11 +1862,11 @@ if ($script:webClient) {
                         $script:lastError = $null
                         Invoke-NotifyCheck $parsed.usage
                     } else {
-                        $script:lastError = 'неожиданный ответ API'
+                        $script:lastError = T('err_unexpected')
                         Write-Log 'update error: unexpected API payload'
                     }
                 } catch {
-                    $script:lastError = 'ошибка разбора ответа API'
+                    $script:lastError = T('err_parse')
                     Write-Log ('update parse error: ' + $_.Exception.Message)
                 }
             }
@@ -1710,7 +1919,7 @@ $edgeTimer.Add_Tick({ Invoke-Safe {
         $edge = $script:cfg.panelEdge
         if ($edge -eq 'bottom') {
             $hitX = ($p.X -ge $f.Left) -and ($p.X -le $f.Right)
-            $hitY = ($p.Y -ge ($wa.Bottom - $script:PANEL_TAB)) -and ($p.Y -le ($wa.Bottom + 2))
+            $hitY = ($p.Y -ge ($wa.Bottom - 24)) -and ($p.Y -le ($wa.Bottom + 2))
         } elseif ($edge -eq 'left') {
             $hitX = ($p.X -ge ($wa.Left - 2)) -and ($p.X -le ($wa.Left + $script:PANEL_TAB))
             $hitY = ($p.Y -ge $f.Top) -and ($p.Y -le $f.Bottom)
@@ -1756,6 +1965,9 @@ if ($script:cfg.panelMode) {
 
 $script:screenSig = Get-ScreenSignature
 Update-ScreenPlacement
+if ($script:cfg.panelMode) {
+    Write-Log ('panel dock: edge=' + $script:cfg.panelEdge + ' screen=' + (Get-PanelScreen).DeviceName + ' pos=' + $script:cfg.panelX)
+}
 
 $screenTimer = New-Object Windows.Forms.Timer
 $script:screenTimer = $screenTimer
@@ -1794,7 +2006,11 @@ $form.Add_FormClosing({
     Write-Log "form closing (exiting=$($script:exiting), reason=$($e.CloseReason))"
     try {
         if ($script:cfg.panelMode) {
-            $script:cfg.panelX = $script:form.Location.X
+            if ($script:cfg.panelEdge -eq 'left' -or $script:cfg.panelEdge -eq 'right') {
+                $script:cfg.panelX = $script:form.Location.Y
+            } else {
+                $script:cfg.panelX = $script:form.Location.X
+            }
         } else {
             $script:cfg.windowX = $script:form.Location.X
             $script:cfg.windowY = $script:form.Location.Y

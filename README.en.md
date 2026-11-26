@@ -15,6 +15,9 @@ A Windows desktop widget that shows your OpenCode Go usage limits (5-hour, weekl
 - Optional autostart with Windows (written only on first run or when toggled explicitly)
 - Panel mode: docks to the chosen screen edge (top/bottom/left/right), hidden except for a 4px status-colored tab; slides out smoothly on hover; can be placed on any monitor (including a tablet)
 - One UI (Samsung) dark theme toggle: rounded window, pill-shaped bars, One UI Blue accent; SamsungOne is auto-detected if installed
+- Two UI languages: Russian and English; switchable via a dropdown in Settings (labels, reset lines, errors, menus and notifications are localized)
+- Header icons without black backgrounds: transparent, with a circular hover highlight
+- For the bottom edge the hover zone is enlarged to 24px (other edges keep the narrow zone)
 - No dependencies: a single exe, runs on Windows 10/11 with built-in PowerShell 5.1
 
 ## Requirements
