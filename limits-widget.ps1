@@ -1630,6 +1630,13 @@ function Start-PanelAnim {
     }
     $script:panelState = $NewState
     $script:panelAnimStart = [Environment]::TickCount
+    try {
+        # Repaint the visible sliver before the window starts moving; otherwise the
+        # hidden-state status tab would travel with the window surface and remain
+        # visible along the leading edge of the shown panel.
+        $script:form.Invalidate()
+        $script:form.Update()
+    } catch { }
     $script:panelAnimTimer.Start()
 }
 
@@ -1903,6 +1910,7 @@ $animTimer.Add_Tick({ Invoke-Safe {
     if ($t -ge 1.0) {
         if ($script:panelState -eq 'showing') { $script:panelState = 'shown' } else { $script:panelState = 'hidden' }
         $script:panelAnimTimer.Stop()
+        try { $script:form.Invalidate() } catch { }
     }
 } 'panel anim' })
 
